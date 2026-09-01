@@ -9,7 +9,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate
+from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate, GlobalKeyword
 from .tasks import fetch_products_task, process_ai_rewrite_task, push_to_target_task
 
 
@@ -152,6 +152,81 @@ def ai_settings_view(request):
         "settings": settings_obj,
         "saved": saved,
     })
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Keywords Management
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def keyword_list_view(request):
+    """List and search global keywords."""
+    search_query = request.GET.get("q", "")
+    
+    keywords = GlobalKeyword.objects.all()
+    if search_query:
+        keywords = keywords.filter(word__icontains=search_query)
+        
+    keywords = keywords.order_by("-priority", "-created_at")
+
+    if request.htmx:
+        return render(request, "sync_app/partials/keyword_rows.html", {
+            "keywords": keywords,
+        })
+        
+    return render(request, "sync_app/keywords_list.html", {
+        "keywords": keywords,
+        "search_query": search_query,
+        "priority_choices": GlobalKeyword.Priority.choices,
+    })
+
+
+@require_POST
+def keyword_create_view(request):
+    """Create a new global keyword."""
+    word = request.POST.get("word", "").strip()
+    priority = request.POST.get("priority", GlobalKeyword.Priority.MEDIUM)
+    
+    if word:
+        GlobalKeyword.objects.get_or_create(
+            word=word,
+            defaults={"priority": priority, "is_active": True}
+        )
+    
+    # After creation, if it's HTMX, return the updated list or just redirect
+    if request.htmx:
+        keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
+        return render(request, "sync_app/partials/keyword_rows.html", {
+            "keywords": keywords,
+        })
+    return redirect("sync_app:keyword_list")
+
+
+@require_POST
+def keyword_toggle_view(request, pk):
+    """Toggle active status of a keyword."""
+    keyword = get_object_or_404(GlobalKeyword, pk=pk)
+    keyword.is_active = not keyword.is_active
+    keyword.save()
+    
+    if request.htmx:
+        keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
+        return render(request, "sync_app/partials/keyword_rows.html", {
+            "keywords": keywords,
+        })
+    return redirect("sync_app:keyword_list")
+
+
+@require_POST
+def keyword_delete_view(request, pk):
+    """Delete a keyword."""
+    keyword = get_object_or_404(GlobalKeyword, pk=pk)
+    keyword.delete()
+    
+    if request.htmx:
+        keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
+        return render(request, "sync_app/partials/keyword_rows.html", {
+            "keywords": keywords,
+        })
+    return redirect("sync_app:keyword_list")
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  HTMX Action Endpoints

@@ -25,6 +25,12 @@ urlpatterns = [
     path("settings/", views.api_settings_view, name="api_settings"),
     path("settings/ai/", views.ai_settings_view, name="ai_settings"),
 
+    # Keywords Management
+    path("keywords/", views.keyword_list_view, name="keyword_list"),
+    path("keywords/create/", views.keyword_create_view, name="keyword_create"),
+    path("keywords/<int:pk>/toggle/", views.keyword_toggle_view, name="keyword_toggle"),
+    path("keywords/<int:pk>/delete/", views.keyword_delete_view, name="keyword_delete"),
+
     # HTMX action endpoints
     path("products/<int:pk>/approve/", views.approve_product_view, name="approve_product"),
     path("products/<int:pk>/regenerate/", views.regenerate_ai_view, name="regenerate_ai"),

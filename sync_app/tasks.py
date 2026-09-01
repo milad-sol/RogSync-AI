@@ -14,7 +14,7 @@ from celery import shared_task
 from django.conf import settings
 from woocommerce import API as WooAPI
 
-from .models import AiSettings, ProductSync, PromptTemplate
+from .models import AiSettings, ProductSync, PromptTemplate, GlobalKeyword
 
 logger = logging.getLogger(__name__)
 
@@ -189,11 +189,15 @@ def process_ai_rewrite_task(self, product_id: int):
 
     try:
         # ── Step 1: Handle SEO keywords ────────
-        # Merge keywords from 3 sources: product, template, global
+        # Merge keywords from 2 sources: product, template (global keywords handled separately)
         ai_settings = AiSettings.load()
         
+        # Get active global keywords ordered by priority descending
+        global_kws = list(GlobalKeyword.objects.filter(is_active=True).order_by("-priority").values_list("word", flat=True))
+        global_kws_str = ", ".join(global_kws)
+        
         merged_kws = []
-        for kw_source in [product.target_keywords, prompt_template.target_keywords, ai_settings.global_keywords]:
+        for kw_source in [product.target_keywords, prompt_template.target_keywords]:
             if kw_source:
                 # Split by comma and strip whitespace
                 kws = [k.strip() for k in kw_source.split(",") if k.strip()]
@@ -223,12 +227,17 @@ def process_ai_rewrite_task(self, product_id: int):
 
         # ── Step 2: Rewrite main description ───
         if product.original_desc:
+            global_kws_instruction = ""
+            if global_kws_str:
+                global_kws_instruction = f"- CRITICAL: You must naturally inject these high-priority global keywords into the generated product description based on relevance: {global_kws_str}\n"
+
             main_prompt = (
                 f"{prompt_template.main_desc_prompt}\n\n"
                 f"Target SEO keywords: {product.target_keywords}\n\n"
                 f"IMPORTANT RULES:\n"
                 f"- You MUST preserve ALL original HTML tags, links, and structure.\n"
                 f"- Inject the keywords naturally into the text.\n"
+                f"{global_kws_instruction}"
                 f"- The output must be unique and not duplicate the original.\n"
                 f"- Return ONLY the rewritten HTML, no explanations.\n\n"
                 f"Original HTML description:\n{product.original_desc}"

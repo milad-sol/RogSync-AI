@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}مدیریت کلمات کلیدی | RogSync AI{% endblock %}
+{% block page_title %}مدیریت کلمات کلیدی{% endblock %}
+{% block page_subtitle %}
+<span class="text-[12px] text-slate-500 font-medium bg-slate-100 px-2.5 py-0.5 rounded-full">
+    کلمات کلیدی سراسری برای تزریق در پرامپت‌ها
+</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- Add New Keyword Form -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            افزودن کلمه کلیدی جدید
+        </h3>
+        <form hx-post="{% url 'sync_app:keyword_create' %}" hx-target="#keyword-tbody" hx-swap="innerHTML" class="flex items-end gap-4" onsubmit="setTimeout(() => this.reset(), 100)">
+            {% csrf_token %}
+            <div class="flex-1">
+                <label for="word" class="block text-[12px] font-semibold text-slate-600 mb-1.5">کلمه کلیدی</label>
+                <input type="text" id="word" name="word" required
+                       placeholder="مثلاً: گوشی موبایل سامسونگ"
+                       class="w-full text-[13px] rounded-xl border-slate-200 shadow-sm focus:border-brand-500 focus:ring-brand-500 h-[42px] px-3">
+            </div>
+            
+            <div class="w-48">
+                <label for="priority" class="block text-[12px] font-semibold text-slate-600 mb-1.5">اولویت</label>
+                <select id="priority" name="priority"
+                        class="w-full text-[13px] rounded-xl border-slate-200 shadow-sm focus:border-brand-500 focus:ring-brand-500 h-[42px] px-3">
+                    {% for val, label in priority_choices %}
+                        <option value="{{ val }}" {% if val == 2 %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <button type="submit"
+                    class="h-[42px] px-6 bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium rounded-xl shadow-sm transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                افزودن
+            </button>
+        </form>
+    </div>
+
+    <!-- Keywords List -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 flex flex-col">
+        <!-- Header & Search -->
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between gap-4">
+            <h3 class="text-sm font-semibold text-slate-800">لیست کلمات کلیدی فعال</h3>
+            
+            <!-- Live Search -->
+            <div class="relative w-72">
+                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <input type="text"
+                       name="q"
+                       value="{{ search_query }}"
+                       hx-get="{% url 'sync_app:keyword_list' %}"
+                       hx-trigger="keyup changed delay:500ms"
+                       hx-target="#keyword-tbody"
+                       placeholder="جستجوی کلمه کلیدی..."
+                       class="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 text-[13px] rounded-xl focus:ring-brand-500 focus:border-brand-500 transition-all">
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-right">
+                <thead>
+                    <tr class="bg-slate-50/50 border-b border-slate-100">
+                        <th class="px-6 py-3 text-[12px] font-semibold text-slate-500">کلمه کلیدی</th>
+                        <th class="px-6 py-3 text-[12px] font-semibold text-slate-500">اولویت</th>
+                        <th class="px-6 py-3 text-[12px] font-semibold text-slate-500">وضعیت</th>
+                        <th class="px-6 py-3 text-[12px] font-semibold text-slate-500 w-24">عملیات</th>
+                    </tr>
+                </thead>
+                <tbody id="keyword-tbody" class="divide-y divide-slate-100 relative">
+                    {% include "sync_app/partials/keyword_rows.html" %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

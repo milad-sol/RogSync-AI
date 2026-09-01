@@ -319,3 +319,28 @@ class AiSettings(models.Model):
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  GlobalKeyword
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class GlobalKeyword(models.Model):
+    """Global Keywords that must be injected into all AI outputs."""
+    
+    class Priority(models.IntegerChoices):
+        LOW = 1, "پایین (Low)"
+        MEDIUM = 2, "متوسط (Medium)"
+        HIGH = 3, "بالا (High)"
+        
+    word = models.CharField(max_length=255, unique=True, verbose_name="کلمه کلیدی")
+    priority = models.IntegerField(choices=Priority.choices, default=Priority.MEDIUM, verbose_name="اولویت")
+    is_active = models.BooleanField(default=True, verbose_name="فعال")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "کلمه کلیدی سراسری"
+        verbose_name_plural = "کلمات کلیدی سراسری"
+        ordering = ["-priority", "-created_at"]
+
+    def __str__(self):
+        return f"{self.word} ({self.get_priority_display()})"
