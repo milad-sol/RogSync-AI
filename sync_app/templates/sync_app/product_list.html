@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}بررسی محصولات — RogSync AI{% endblock %}
+{% block page_title %}بررسی محصولات{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+  <!-- ── Filters ─────────────────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+    <form method="get" class="flex flex-wrap items-center gap-3">
+      <div class="flex-1 min-w-[200px]">
+        <input type="text" name="q" value="{{ search_query }}"
+               placeholder="جستجو بر اساس عنوان یا شناسه…"
+               class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+      </div>
+      <select name="status"
+              class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition appearance-none cursor-pointer min-w-[150px]">
+        <option value="">همه وضعیت‌ها</option>
+        {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit"
+              class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-medium px-5 py-2.5 rounded-lg transition-colors border border-slate-200">
+        اعمال فیلتر
+      </button>
+    </form>
+  </div>
+
+  <!-- ── Table ───────────────────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <table class="w-full text-[13px]">
+      <thead>
+        <tr class="bg-slate-50/80 border-b border-slate-100">
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">شناسه</th>
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">عنوان محصول</th>
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">نوع</th>
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">وضعیت</th>
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">آخرین تغییر</th>
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">عملیات</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for product in products %}
+        <tr class="hover:bg-slate-50/60 transition-colors group">
+          <td class="py-3.5 px-5">
+            <span class="text-slate-400 font-mono text-[12px]">#{{ product.source_id }}</span>
+          </td>
+          <td class="py-3.5 px-5">
+            <span class="text-slate-700 font-medium">{{ product.title|truncatechars:55 }}</span>
+          </td>
+          <td class="py-3.5 px-5">
+            {% if product.product_type == 'variable' %}
+            <span class="inline-flex items-center text-[11px] font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 px-2 py-0.5 rounded-md">متغیر</span>
+            {% else %}
+            <span class="inline-flex items-center text-[11px] font-medium bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/10 px-2 py-0.5 rounded-md">ساده</span>
+            {% endif %}
+          </td>
+          <td class="py-3.5 px-5">
+            <span class="inline-flex items-center text-[11px] font-medium ring-1 ring-inset px-2 py-0.5 rounded-md {{ product.status_badge_classes }}">
+              {% if product.status == 'ai_processing' %}
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1.5 animate-pulse-dot"></span>
+              {% endif %}
+              {{ product.get_status_display }}
+            </span>
+          </td>
+          <td class="py-3.5 px-5">
+            <span class="text-[12px] text-slate-400">{{ product.updated_at|timesince }} پیش</span>
+          </td>
+          <td class="py-3.5 px-5">
+            {% if product.status != 'ai_processing' %}
+            <a href="{% url 'sync_app:product_review' product.pk %}"
+               class="text-brand-600 hover:text-brand-800 text-[12px] font-medium transition-colors opacity-60 group-hover:opacity-100">
+              مشاهده و بررسی
+            </a>
+            {% else %}
+            <span class="text-[12px] text-slate-400">در حال پردازش…</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="py-16 text-center">
+            <svg class="w-12 h-12 text-slate-200 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
+            <p class="text-sm text-slate-400">محصولی یافت نشد.</p>
+            <p class="text-[12px] text-slate-400 mt-1">ابتدا محصولات را از سایت منبع دریافت کنید.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

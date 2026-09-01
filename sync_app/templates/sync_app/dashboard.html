@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}داشبورد — RogSync AI{% endblock %}
+{% block page_title %}داشبورد{% endblock %}
+
+{% block header_actions %}
+<!-- Fetch products mini-form in header -->
+<form hx-post="{% url 'sync_app:fetch_products' %}"
+      hx-target="#fetch-result"
+      hx-swap="innerHTML"
+      class="flex items-center gap-2">
+  {% csrf_token %}
+  <input type="number" name="category_id" placeholder="شناسه دسته‌بندی"
+         class="w-32 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+  <input type="number" name="limit" value="20" placeholder="تعداد"
+         class="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+  <button type="submit"
+          class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-4 py-1.5 rounded-lg transition-all hover:shadow-md hover:shadow-brand-500/20 active:scale-[0.97]">
+    دریافت محصولات
+  </button>
+  <div id="fetch-result"></div>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- ── Pipeline Stats Cards ────────── -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+
+    {% for key, stat in stats.items %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[12px] font-medium text-slate-500">{{ stat.label }}</span>
+
+        {% if key == 'fetched' %}
+        <div class="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+          <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+          </svg>
+        </div>
+        {% elif key == 'ai_processing' %}
+        <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+          <svg class="w-4 h-4 text-amber-600 animate-pulse-dot" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        {% elif key == 'ready_for_review' %}
+        <div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+          <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+        </div>
+        {% elif key == 'approved' %}
+        <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        {% elif key == 'synced' %}
+        <div class="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
+          <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </div>
+        {% endif %}
+      </div>
+
+      <p class="text-2xl font-bold text-slate-800">{{ stat.count }}</p>
+    </div>
+    {% endfor %}
+
+  </div>
+
+  <!-- ── Pipeline Progress ───────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-[14px] font-semibold text-slate-800">خط لوله محصولات</h3>
+      <span class="text-2xl font-bold text-brand-600">{{ total }}</span>
+    </div>
+
+    {% if total > 0 %}
+    <div class="space-y-3">
+      <!-- Stacked bar -->
+      <div class="flex h-2.5 rounded-full overflow-hidden bg-slate-100">
+        {% with fetched=stats.fetched.count processing=stats.ai_processing.count review=stats.ready_for_review.count approved=stats.approved.count synced=stats.synced.count %}
+        {% if synced %}<div class="bg-teal-500 transition-all duration-700" style="width:{% widthratio synced total 100 %}%"></div>{% endif %}
+        {% if approved %}<div class="bg-emerald-500 transition-all duration-700" style="width:{% widthratio approved total 100 %}%"></div>{% endif %}
+        {% if review %}<div class="bg-violet-500 transition-all duration-700" style="width:{% widthratio review total 100 %}%"></div>{% endif %}
+        {% if processing %}<div class="bg-amber-500 transition-all duration-700" style="width:{% widthratio processing total 100 %}%"></div>{% endif %}
+        {% if fetched %}<div class="bg-sky-500 transition-all duration-700" style="width:{% widthratio fetched total 100 %}%"></div>{% endif %}
+        {% endwith %}
+      </div>
+
+      <!-- Legend -->
+      <div class="flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-500"></span> دریافت شده</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> پردازش AI</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-violet-500"></span> آماده بررسی</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> تأیید شده</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-teal-500"></span> همگام‌سازی شده</span>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-center py-8">
+      <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+      </svg>
+      <p class="text-sm text-slate-400">هنوز محصولی وارد نشده است.</p>
+      <p class="text-xs text-slate-400 mt-1">از دکمه «دریافت محصولات» در بالای صفحه استفاده کنید.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

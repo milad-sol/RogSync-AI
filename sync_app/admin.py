@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ApiSettings, ProductSync, PromptTemplate
+from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate
 
 
 @admin.register(PromptTemplate)
@@ -24,6 +24,16 @@ class ApiSettingsAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return not ApiSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+@admin.register(AiSettings)
+class AiSettingsAdmin(admin.ModelAdmin):
+    """Singleton admin — prevents adding more than one instance."""
+
+    def has_add_permission(self, request):
+        return not AiSettings.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
         return False

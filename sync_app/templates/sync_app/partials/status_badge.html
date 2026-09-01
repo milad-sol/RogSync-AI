@@ -1,0 +1,13 @@
+<!-- Light-theme status badge partial -->
+<div class="flex items-center gap-3">
+  <span class="inline-flex items-center text-[11px] font-medium ring-1 ring-inset px-2.5 py-1 rounded-md {{ product.status_badge_classes }}">
+    {% if product.status == 'ai_processing' %}
+    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1.5 animate-pulse-dot"></span>
+    {% endif %}
+    {{ product.get_status_display }}
+  </span>
+
+  {% if message %}
+  <span class="text-[12px] text-emerald-600 font-medium toast-enter">{{ message }}</span>
+  {% endif %}
+</div>

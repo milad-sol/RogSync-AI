@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}RogSync AI{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}سیستم همگام‌سازی هوشمند محصولات ووکامرس{% endblock %}">
+
+  <!-- Vazirmatn Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        fontFamily: {
+          sans: ['Vazirmatn', 'system-ui', '-apple-system', 'sans-serif'],
+        },
+        extend: {
+          colors: {
+            brand: {
+              50:  '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              300: '#a5b4fc',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+            },
+          },
+        },
+      },
+    }
+  </script>
+
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@2.0.4"
+          integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+          crossorigin="anonymous"></script>
+
+  <style>
+    /* ── Base ───────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Scrollbar ──────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ── Sidebar nav active indicator ──── */
+    .nav-item {
+      position: relative;
+      transition: all 0.15s ease;
+    }
+    .nav-item::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 0;
+      background: #4f46e5;
+      border-radius: 3px 0 0 3px;
+      transition: height 0.2s ease;
+    }
+    .nav-item:hover::after,
+    .nav-item.active::after {
+      height: 55%;
+    }
+    .nav-item.active {
+      background: #eef2ff;
+      color: #4f46e5;
+    }
+    .nav-item:hover {
+      background: #f8fafc;
+      color: #4338ca;
+    }
+
+    /* ── HTMX transitions ──────────────── */
+    .htmx-settling { transition: opacity 0.2s ease-in-out; }
+    .htmx-swapping { opacity: 0; transition: opacity 0.1s ease-out; }
+
+    /* ── Rendered HTML preview areas ───── */
+    .desc-preview {
+      max-height: 480px;
+      overflow-y: auto;
+      line-height: 2;
+    }
+    .desc-preview img { max-width: 100%; border-radius: 8px; margin: 0.5rem 0; }
+    .desc-preview a { color: #4f46e5; text-decoration: underline; }
+    .desc-preview p { margin-bottom: 0.75rem; }
+    .desc-preview ul, .desc-preview ol { padding-right: 1.5rem; margin-bottom: 0.75rem; }
+    .desc-preview h1, .desc-preview h2, .desc-preview h3 {
+      margin-bottom: 0.5rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    /* ── Toast messages ────────────────── */
+    .toast-enter {
+      animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 3.5s forwards;
+    }
+    @keyframes toast-in {
+      from { transform: translateY(-12px); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes toast-out {
+      to { opacity: 0; transform: translateY(-8px); }
+    }
+
+    /* ── Pulse dot for processing ──────── */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+
+<body class="bg-slate-50 text-slate-700 min-h-screen">
+
+  <!-- ═══════════════════════════════════════
+       Layout:  [Main Content]  [Right Sidebar]
+       ═══════════════════════════════════════ -->
+  <div class="flex min-h-screen">
+
+    <!-- ═══════ Right Sidebar (Fixed) ═══════ -->
+    <aside class="w-[260px] flex-shrink-0 bg-white border-l border-slate-200/80 flex flex-col sticky top-0 h-screen overflow-y-auto">
+
+      <!-- ── Logo / Brand ──────────────── -->
+      <div class="p-6 pb-5">
+        <a href="{% url 'sync_app:dashboard' %}" class="flex items-center gap-3 group">
+          <!-- Icon mark -->
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-md shadow-brand-500/25 group-hover:shadow-lg group-hover:shadow-brand-500/30 transition-shadow">
+            <svg class="w-[18px] h-[18px] text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[15px] font-bold text-slate-800 tracking-tight leading-none">RogSync</span>
+            <span class="text-[10px] font-semibold text-brand-600 bg-brand-50 px-1.5 py-[1px] rounded mt-1 w-fit">AI</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- ── Navigation ────────────────── -->
+      <nav class="flex-1 px-3 space-y-0.5">
+
+        <p class="px-3 pt-2 pb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">اصلی</p>
+
+        <!-- Dashboard -->
+        <a href="{% url 'sync_app:dashboard' %}"
+           class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
+          <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+          </svg>
+          داشبورد
+        </a>
+
+        <!-- Products Review -->
+        <a href="{% url 'sync_app:product_list' %}"
+           class="nav-item {% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'product_review' %}active{% endif %}
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
+          <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+          بررسی محصولات
+        </a>
+
+        <p class="px-3 pt-5 pb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">تنظیمات</p>
+
+        <!-- Prompt Templates -->
+        <a href="{% url 'sync_app:prompt_list' %}"
+           class="nav-item {% if 'prompt' in request.resolver_match.url_name %}active{% endif %}
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
+          <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+          قالب پرامپت
+        </a>
+
+        <!-- API Settings -->
+        <a href="{% url 'sync_app:api_settings' %}"
+           class="nav-item {% if request.resolver_match.url_name == 'api_settings' %}active{% endif %}
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
+          <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          تنظیمات API
+        </a>
+
+        <!-- AI Settings -->
+        <a href="{% url 'sync_app:ai_settings' %}"
+           class="nav-item {% if request.resolver_match.url_name == 'ai_settings' %}active{% endif %}
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
+          <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          تنظیمات AI
+        </a>
+
+      </nav>
+
+      <!-- ── Sidebar Footer ────────────── -->
+      <div class="p-4 border-t border-slate-100">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>RogSync AI</span>
+          <span class="bg-slate-100 px-2 py-0.5 rounded-full font-medium">v1.0</span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ═══════ Main Content Area ═══════ -->
+    <main class="flex-1 flex flex-col min-w-0">
+
+      <!-- ── Top Bar ───────────────────── -->
+      <header class="h-16 bg-white border-b border-slate-200/80 sticky top-0 z-40 flex items-center justify-between px-8">
+        <div class="flex items-center gap-4">
+          <h2 class="text-[15px] font-semibold text-slate-800">
+            {% block page_title %}داشبورد{% endblock %}
+          </h2>
+          {% block page_subtitle %}{% endblock %}
+        </div>
+
+        {% block header_actions %}{% endblock %}
+      </header>
+
+      <!-- ── Page Content ──────────────── -->
+      <div class="flex-1 p-6 lg:p-8">
+        {% block content %}{% endblock %}
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- ═══════ Toast Notification Container ═══════ -->
+  <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] space-y-2"></div>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

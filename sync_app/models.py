@@ -32,6 +32,12 @@ class PromptTemplate(models.Model):
         verbose_name="فعال",
         help_text="فقط یک قالب می‌تواند فعال باشد",
     )
+    target_keywords = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="کلمات کلیدی هدف (قالب)",
+        help_text="این کلمات کلیدی در تمام محصولات این قالب اعمال می‌شوند",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -247,21 +253,6 @@ class ApiSettings(models.Model):
         verbose_name="Consumer Secret مقصد",
     )
 
-    # ── OpenRouter ─────────────────────────
-    openrouter_api_key = models.CharField(
-        max_length=255,
-        blank=True,
-        default="",
-        verbose_name="کلید API اوپن‌روتر",
-    )
-    openrouter_model = models.CharField(
-        max_length=100,
-        blank=True,
-        default="openai/gpt-4o",
-        verbose_name="مدل AI",
-        help_text="مثال: openai/gpt-4o, anthropic/claude-3.5-sonnet",
-    )
-
     # ── Timestamps ─────────────────────────
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -280,5 +271,51 @@ class ApiSettings(models.Model):
     @classmethod
     def load(cls):
         """Load or create the singleton settings instance."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  AiSettings (Singleton)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+class AiSettings(models.Model):
+    """
+    Singleton model for storing AI and OpenRouter configurations.
+    """
+
+    openrouter_api_key = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="کلید API اوپن‌روتر",
+    )
+    openrouter_model = models.CharField(
+        max_length=100,
+        blank=True,
+        default="openai/gpt-4o",
+        verbose_name="مدل AI",
+        help_text="مثال: openai/gpt-4o, anthropic/claude-3.5-sonnet",
+    )
+    global_keywords = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="کلمات کلیدی سراسری",
+        help_text="کلمات کلیدی که روی تمام محصولات اعمال می‌شوند",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "تنظیمات هوش مصنوعی"
+        verbose_name_plural = "تنظیمات هوش مصنوعی"
+
+    def __str__(self):
+        return "تنظیمات هوش مصنوعی"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
