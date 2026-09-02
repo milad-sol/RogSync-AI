@@ -5,6 +5,7 @@ from sync_app.models import GlobalKeyword, ProductSync, PromptTemplate
 
 
 DEMO_SOURCE_ID = 888001
+DEMO_VARIABLE_SOURCE_ID = 888002
 
 
 class Command(BaseCommand):
@@ -79,4 +80,92 @@ class Command(BaseCommand):
         action = "created" if created else "updated"
         self.stdout.write(self.style.SUCCESS(
             f"Demo product {action}: /products/{product.pk}/review/"
+        ))
+
+        laptop_prompt = PromptTemplate.objects.filter(title="لپ تاپ").first() or prompt
+        variable_images = [
+            {"src": "https://picsum.photos/id/180/900/700", "alt": "لپ‌تاپ گیمینگ نقره‌ای"},
+            {"src": "https://picsum.photos/id/201/900/700", "alt": "لپ‌تاپ گیمینگ مشکی"},
+        ]
+        variable_product, var_created = ProductSync.objects.update_or_create(
+            source_id=DEMO_VARIABLE_SOURCE_ID,
+            defaults={
+                "title": "لپ‌تاپ گیمینگ ایسوس — نسخه دمو متغیر",
+                "original_slug": "asus-gaming-laptop-variable-demo",
+                "target_slug": "asus-gaming-laptop-variable-demo",
+                "product_type": ProductSync.ProductType.VARIABLE,
+                "target_keywords": "لپ تاپ گیمینگ, ایسوس, RTX 4060",
+                "original_desc": "<p>لپ‌تاپ گیمینگ ایسوس با چند تنوع رنگ و حافظه.</p>",
+                "original_short_desc": "<p>لپ‌تاپ گیمینگ متغیر.</p>",
+                "generated_desc": "<p>لپ‌تاپ گیمینگ ایسوس با پردازنده قوی و کارت RTX 4060 برای بازی و کار سنگین.</p>",
+                "generated_short_desc": "<p>لپ‌تاپ گیمینگ ایسوس با تنوع رنگ و حافظه.</p>",
+                "images_data": variable_images,
+                "attributes": [
+                    {"id": 1, "name": "رنگ", "variation": True, "visible": True, "options": ["نقره‌ای", "مشکی"]},
+                    {"id": 2, "name": "حافظه SSD", "variation": True, "visible": True, "options": ["512GB", "1TB"]},
+                    {"id": 3, "name": "GPU", "variation": False, "visible": True, "options": ["RTX 4060"]},
+                ],
+                "variations_data": [
+                    {
+                        "id": 91001,
+                        "sku": "ASUS-SLV-512",
+                        "regular_price": "58900000",
+                        "sale_price": "55900000",
+                        "stock_status": "instock",
+                        "stock_quantity": 6,
+                        "image": {"src": variable_images[0]["src"]},
+                        "attributes": [
+                            {"name": "رنگ", "option": "نقره‌ای"},
+                            {"name": "حافظه SSD", "option": "512GB"},
+                        ],
+                    },
+                    {
+                        "id": 91002,
+                        "sku": "ASUS-SLV-1TB",
+                        "regular_price": "64900000",
+                        "sale_price": "",
+                        "stock_status": "instock",
+                        "stock_quantity": 3,
+                        "image": {"src": variable_images[0]["src"]},
+                        "attributes": [
+                            {"name": "رنگ", "option": "نقره‌ای"},
+                            {"name": "حافظه SSD", "option": "1TB"},
+                        ],
+                    },
+                    {
+                        "id": 91003,
+                        "sku": "ASUS-BLK-512",
+                        "regular_price": "58900000",
+                        "sale_price": "54900000",
+                        "stock_status": "outofstock",
+                        "stock_quantity": 0,
+                        "image": {"src": variable_images[1]["src"]},
+                        "attributes": [
+                            {"name": "رنگ", "option": "مشکی"},
+                            {"name": "حافظه SSD", "option": "512GB"},
+                        ],
+                    },
+                    {
+                        "id": 91004,
+                        "sku": "ASUS-BLK-1TB",
+                        "regular_price": "64900000",
+                        "sale_price": "",
+                        "stock_status": "onbackorder",
+                        "stock_quantity": None,
+                        "image": {"src": variable_images[1]["src"]},
+                        "attributes": [
+                            {"name": "رنگ", "option": "مشکی"},
+                            {"name": "حافظه SSD", "option": "1TB"},
+                        ],
+                    },
+                ],
+                "source_categories": [{"id": 22, "name": "لپ‌تاپ", "slug": "laptop"}],
+                "target_categories": [],
+                "prompt_template": laptop_prompt,
+                "status": ProductSync.Status.READY_FOR_REVIEW,
+            },
+        )
+        var_action = "created" if var_created else "updated"
+        self.stdout.write(self.style.SUCCESS(
+            f"Variable demo {var_action}: /products/{variable_product.pk}/review/"
         ))

@@ -21,7 +21,7 @@ class PromptTemplate(models.Model):
     )
     prompt = models.TextField(
         verbose_name="پرامپت",
-        help_text="یک پرامپت واحد که هم توضیح کوتاه و هم محتوای اصلی را تولید می‌کند. از {product_name} و {seo_keywords} استفاده کنید.",
+        help_text="یک پرامپت واحد برای توضیح کوتاه و محتوای اصلی. از {product_name}، {seo_keywords} و در محصولات متغیر از {variations} استفاده کنید.",
     )
     is_active = models.BooleanField(
         default=False,
@@ -257,6 +257,39 @@ class ProductSync(models.Model):
                 except (TypeError, ValueError):
                     continue
         return ids
+
+    @property
+    def variation_rows(self):
+        """Normalize WooCommerce variation JSON for the review table."""
+        stock_labels = {
+            "instock": "موجود",
+            "outofstock": "ناموجود",
+            "onbackorder": "پیش‌سفارش",
+        }
+        rows = []
+        for item in self.variations_data or []:
+            if not isinstance(item, dict):
+                continue
+            image = item.get("image") if isinstance(item.get("image"), dict) else {}
+            attributes = []
+            for attr in item.get("attributes") or []:
+                if not isinstance(attr, dict):
+                    continue
+                name = (attr.get("name") or attr.get("slug") or "").strip()
+                option = (attr.get("option") or "").strip()
+                if name and option:
+                    attributes.append({"name": name, "option": option})
+            stock_status = (item.get("stock_status") or "").strip()
+            rows.append({
+                "sku": (item.get("sku") or "").strip() or "—",
+                "regular_price": str(item.get("regular_price") or "").strip(),
+                "sale_price": str(item.get("sale_price") or "").strip(),
+                "stock_label": stock_labels.get(stock_status, stock_status or "—"),
+                "stock_quantity": item.get("stock_quantity"),
+                "image_src": (image.get("src") or "").strip(),
+                "attributes": attributes,
+            })
+        return rows
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

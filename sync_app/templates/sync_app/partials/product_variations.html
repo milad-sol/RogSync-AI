@@ -1,0 +1,70 @@
+{% if product.product_type == 'variable' %}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+  <div class="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+      <span class="text-[12px] font-semibold text-slate-600">تنوع‌های محصول</span>
+    </div>
+    <span class="text-[11px] text-slate-400">{{ product.variations_data|length }} تنوع از سایت مبدأ — هنگام ارسال به مقصد همین‌ها منتقل می‌شوند</span>
+  </div>
+  {% if product.variation_rows %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-[13px]">
+      <thead>
+        <tr class="bg-slate-50/80 border-b border-slate-100">
+          <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">تصویر</th>
+          <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">ویژگی‌ها</th>
+          <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">SKU</th>
+          <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">قیمت</th>
+          <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">موجودی</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for row in product.variation_rows %}
+        <tr class="hover:bg-slate-50/60">
+          <td class="py-3 px-5">
+            {% if row.image_src %}
+            <img src="{{ row.image_src }}" alt="" class="w-12 h-12 rounded-lg object-cover border border-slate-200">
+            {% else %}
+            <span class="w-12 h-12 rounded-lg bg-slate-100 inline-flex items-center justify-center text-[11px] text-slate-400">—</span>
+            {% endif %}
+          </td>
+          <td class="py-3 px-5">
+            <div class="flex flex-wrap gap-1.5">
+              {% for attr in row.attributes %}
+              <span class="inline-flex items-center gap-1 text-[11px] font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/15 px-2 py-0.5 rounded-md">
+                <span class="text-indigo-400">{{ attr.name }}:</span> {{ attr.option }}
+              </span>
+              {% empty %}
+              <span class="text-[12px] text-slate-400">بدون ویژگی</span>
+              {% endfor %}
+            </div>
+          </td>
+          <td class="py-3 px-5">
+            <span class="font-mono text-[12px] text-slate-500" dir="ltr">{{ row.sku }}</span>
+          </td>
+          <td class="py-3 px-5">
+            {% if row.sale_price %}
+            <div class="flex flex-col">
+              <span class="text-[12px] text-slate-400 line-through" dir="ltr">{{ row.regular_price }}</span>
+              <span class="text-[13px] font-semibold text-slate-800" dir="ltr">{{ row.sale_price }}</span>
+            </div>
+            {% elif row.regular_price %}
+            <span class="text-[13px] font-medium text-slate-700" dir="ltr">{{ row.regular_price }}</span>
+            {% else %}
+            <span class="text-[12px] text-slate-400">—</span>
+            {% endif %}
+          </td>
+          <td class="py-3 px-5">
+            <span class="text-[12px] text-slate-600">{{ row.stock_label }}{% if row.stock_quantity != None %} <span class="text-slate-400">({{ row.stock_quantity }})</span>{% endif %}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="px-5 py-8 text-center text-[13px] text-slate-400">تنوعی برای این محصول ذخیره نشده است.</p>
+  {% endif %}
+</div>
+{% endif %}

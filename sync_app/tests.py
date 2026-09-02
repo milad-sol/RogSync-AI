@@ -2,7 +2,13 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from sync_app.models import ProductSync, PromptTemplate
-from sync_app.prompts import fill_placeholders, select_injection_keywords, split_generated_content
+from sync_app.prompts import (
+    build_generation_prompt,
+    fill_placeholders,
+    format_variations_for_prompt,
+    select_injection_keywords,
+    split_generated_content,
+)
 
 
 class PromptHelpersTests(SimpleTestCase):
@@ -57,6 +63,50 @@ class PromptHelpersTests(SimpleTestCase):
         self.assertIn("لپ تاپ گیمینگ", selected)
         self.assertNotIn("دسته بازی PS5", selected)
         self.assertNotIn("هدست استریم", selected)
+
+    def test_variable_prompt_lists_combos_without_prices(self):
+        product = type("P", (), {
+            "title": "لپ‌تاپ گیمینگ ایسوس",
+            "product_type": "variable",
+            "original_short_desc": "",
+            "original_desc": "",
+            "source_permalink": "",
+            "attributes": [
+                {"name": "رنگ", "variation": True, "options": ["نقره‌ای", "مشکی"]},
+                {"name": "GPU", "variation": False, "options": ["RTX 4060"]},
+            ],
+            "variations_data": [
+                {
+                    "sku": "ASUS-SLV-512",
+                    "regular_price": "58900000",
+                    "sale_price": "55900000",
+                    "attributes": [
+                        {"name": "رنگ", "option": "نقره‌ای"},
+                        {"name": "حافظه SSD", "option": "512GB"},
+                    ],
+                },
+                {
+                    "sku": "ASUS-BLK-1TB",
+                    "regular_price": "64900000",
+                    "attributes": [
+                        {"name": "رنگ", "option": "مشکی"},
+                        {"name": "حافظه SSD", "option": "1TB"},
+                    ],
+                },
+            ],
+        })()
+        brief = format_variations_for_prompt(product)
+        self.assertIn("نقره‌ای", brief)
+        self.assertIn("512GB", brief)
+        self.assertIn("مشکی", brief)
+        self.assertIn("2", brief)
+        self.assertNotIn("58900000", brief)
+        self.assertNotIn("55900000", brief)
+        prompt = build_generation_prompt("Write copy for {product_name}. {variations}", product, "لپ تاپ")
+        self.assertIn("VARIATIONS", prompt)
+        self.assertIn("ASUS-SLV-512", prompt)
+        self.assertIn("every listed configuration", prompt.lower())
+        self.assertNotIn("58900000", prompt)
 
 
 class FetchRequiresPromptTests(TestCase):

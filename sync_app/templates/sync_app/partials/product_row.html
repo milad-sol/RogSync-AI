@@ -40,7 +40,7 @@
   </td>
   <td class="py-3.5 px-5">
     {% if product.product_type == 'variable' %}
-    <span class="inline-flex items-center text-[11px] font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 px-2 py-0.5 rounded-md">متغیر</span>
+    <span class="inline-flex items-center text-[11px] font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 px-2 py-0.5 rounded-md">متغیر{% if product.variations_data %} — {{ product.variations_data|length }}{% endif %}</span>
     {% else %}
     <span class="inline-flex items-center text-[11px] font-medium bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/10 px-2 py-0.5 rounded-md">ساده</span>
     {% endif %}

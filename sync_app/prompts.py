@@ -11,6 +11,7 @@ PLACEHOLDER_KEYS = (
     "reference_url",
     "config_note",
     "seo_keywords",
+    "variations",
 )
 
 _SHORT_MARKERS = re.compile(
@@ -54,6 +55,76 @@ def _attribute_value(attributes, names) -> str:
     return ""
 
 
+def _variation_combo_label(item: dict) -> str:
+    parts = []
+    for attr in item.get("attributes") or []:
+        if not isinstance(attr, dict):
+            continue
+        name = (attr.get("name") or "").strip()
+        option = (attr.get("option") or "").strip()
+        if not option:
+            continue
+        parts.append(f"{name}: {option}" if name else option)
+    return " — ".join(parts)
+
+
+def format_variations_for_prompt(product) -> str:
+    """
+    Professional variation brief for the model.
+
+    Prices are omitted on purpose. Copy should cover real configurations only.
+    """
+    rows = getattr(product, "variations_data", None) or []
+    product_type = getattr(product, "product_type", "") or ""
+    if product_type != "variable" and not rows:
+        return ""
+
+    axes = []
+    for attr in getattr(product, "attributes", None) or []:
+        if not isinstance(attr, dict) or not attr.get("variation"):
+            continue
+        name = (attr.get("name") or "").strip()
+        options = attr.get("options") or []
+        if not name or not isinstance(options, list):
+            continue
+        values = [str(item).strip() for item in options if str(item).strip()]
+        if values:
+            axes.append(f"- {name}: " + "، ".join(values))
+
+    combos = []
+    for index, item in enumerate(rows, 1):
+        if not isinstance(item, dict):
+            continue
+        label = _variation_combo_label(item)
+        if not label:
+            continue
+        sku = (item.get("sku") or "").strip()
+        line = f"{index}. {label}"
+        if sku:
+            line += f" (SKU: {sku})"
+        combos.append(line)
+
+    if not axes and not combos:
+        return ""
+
+    parts = [
+        "This is a VARIABLE WooCommerce product. Generate one parent product page.",
+        "Cover only the real configurations below. Do not invent extra variants.",
+        "Do not mention price, sale, currency, or stock counts.",
+    ]
+    if axes:
+        parts.append("Variation axes:")
+        parts.extend(axes)
+    if combos:
+        parts.append(f"Purchasable configurations ({len(combos)}):")
+        parts.extend(combos)
+    parts.append(
+        "In [Main Description], add a professional Persian section that names every "
+        "configuration and explains who it is for, so the buyer can choose with confidence."
+    )
+    return "\n".join(parts)
+
+
 def prompt_variables(product, seo_keywords: str) -> dict:
     attributes = product.attributes if isinstance(getattr(product, "attributes", None), list) else []
     return {
@@ -64,6 +135,7 @@ def prompt_variables(product, seo_keywords: str) -> dict:
         "reference_url": getattr(product, "source_permalink", "") or "",
         "config_note": (product.original_short_desc or "").strip(),
         "seo_keywords": seo_keywords or "",
+        "variations": format_variations_for_prompt(product),
     }
 
 
@@ -91,6 +163,10 @@ def product_keyword_context(product) -> str:
             parts.extend(str(item) for item in options)
         elif options:
             parts.append(str(options))
+    for item in getattr(product, "variations_data", None) or []:
+        if not isinstance(item, dict):
+            continue
+        parts.append(_variation_combo_label(item))
     return _norm_text(" ".join(parts))
 
 
@@ -233,16 +309,28 @@ def build_generation_prompt(template_body: str, product, seo_keywords: str) -> s
             "Product attributes JSON:\n"
             + json.dumps(product.attributes, ensure_ascii=False)
         )
-    sections.append(
-        "\nOUTPUT RULES:\n"
-        "- Generate BOTH sections in a single response.\n"
+    variation_brief = format_variations_for_prompt(product)
+    if variation_brief:
+        sections.append("VARIATIONS (must drive the copy):\n" + variation_brief)
+    rules = [
+        "",
+        "OUTPUT RULES:",
+        "- Generate BOTH sections in a single response.",
         "- Published copy MUST be 100% Persian. Latin is allowed only for technical tokens "
-        "(CPU/GPU names, RAM/SSD sizes, Hz, brand/series SKUs).\n"
-        "- Put the short WooCommerce excerpt after the exact marker [Short Description].\n"
-        "- Put the full HTML product page after the exact marker [Main Description].\n"
-        "- Do not wrap the output in markdown code fences.\n"
+        "(CPU/GPU names, RAM/SSD sizes, Hz, brand/series SKUs).",
+        "- Put the short WooCommerce excerpt after the exact marker [Short Description].",
+        "- Put the full HTML product page after the exact marker [Main Description].",
+        "- Do not wrap the output in markdown code fences.",
         "- {seo_keywords} is already filtered for this product. Inject every remaining term "
         "as natural Persian phrasing (once or twice each), never as a comma list, never stacked, "
-        "and never inside the short specification line."
-    )
+        "and never inside the short specification line.",
+    ]
+    if variation_brief:
+        rules.extend([
+            "- This product is variable. In [Main Description], cover EVERY listed configuration "
+            "in a dedicated Persian section (heading + short comparison). Name the attributes "
+            "of each variant and explain who it is for.",
+            "- Do not invent variants. Do not mention price, discount, currency, or stock numbers.",
+        ])
+    sections.extend(rules)
     return "\n".join(sections)
