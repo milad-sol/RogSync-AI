@@ -118,6 +118,28 @@ class SkuHelpersTests(SimpleTestCase):
         self.assertTrue(sku.startswith("lpt"))
         self.assertNotIn(" ", sku)
 
+    def test_console_titles_use_brand_stems(self):
+        from sync_app.sku import product_sku, sku_stem
+
+        self.assertEqual(sku_stem("کنسول پلی استیشن 5"), "ps")
+        self.assertEqual(sku_stem("پلی‌استیشن ۵ اسلیم"), "ps")
+        self.assertEqual(sku_stem("ایکس باکس سریز اس"), "xb")
+        self.assertEqual(sku_stem("Xbox Series X"), "xb")
+        self.assertEqual(sku_stem("نینتندو سوییچ"), "nsw")
+        self.assertEqual(sku_stem("کنسول بازی"), "csl")
+        ps_sku = product_sku("کنسول پلی استیشن 5", 51, set())
+        self.assertTrue(ps_sku.startswith("ps"))
+        xb_sku = product_sku("ایکس باکس سریز ایکس", 52, set())
+        self.assertTrue(xb_sku.startswith("xb"))
+
+    def test_monitor_title_uses_mon_stem(self):
+        from sync_app.sku import product_sku, sku_stem
+
+        self.assertEqual(sku_stem("مانیتور گیمینگ سامسونگ"), "mon")
+        self.assertEqual(sku_stem("Samsung Odyssey Monitor"), "mon")
+        sku = product_sku("مانیتور گیمینگ سامسونگ Odyssey", 61, set())
+        self.assertTrue(sku.startswith("mon"))
+
     def test_keeps_source_sku(self):
         from sync_app.sku import product_sku
 
