@@ -3,8 +3,258 @@
 {% block title %}قالب‌های پرامپت — RogSync AI{% endblock %}
 {% block page_title %}قالب‌های پرامپت{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7.6.1/tinymce.min.js" referrerpolicy="origin"></script>
+<style>
+  .tox-tinymce { border-radius: 14px !important; border-color: #e2e8f0 !important; }
+  html.dark .tox-tinymce { border-color: #334155 !important; }
+
+  .prompt-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+    gap: 1.25rem;
+    justify-content: start;
+  }
+  @media (min-width: 1100px) {
+    .prompt-grid {
+      grid-template-columns: repeat(auto-fill, minmax(380px, 460px));
+    }
+  }
+
+  .prompt-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 280px;
+    border-radius: 20px;
+    background: #fff;
+    border: 1px solid #e8edf5;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 10px 28px rgb(15 23 42 / 0.05);
+    transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+                box-shadow 180ms cubic-bezier(0.23, 1, 0.32, 1),
+                border-color 180ms ease;
+  }
+  .prompt-card::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: transparent;
+  }
+  .prompt-card.is-active {
+    border-color: rgba(99, 102, 241, 0.38);
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.16), 0 14px 36px rgb(79 70 229 / 0.12);
+  }
+  .prompt-card.is-active::before {
+    background: linear-gradient(180deg, #818cf8, #4f46e5);
+  }
+  .prompt-card.is-editing {
+    grid-column: 1 / -1;
+    min-height: 0;
+    overflow: visible;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .prompt-card:not(.is-editing):hover {
+      transform: translateY(-3px);
+      border-color: #c7d2fe;
+      box-shadow: 0 16px 40px rgb(15 23 42 / 0.1);
+    }
+  }
+  .prompt-card:active:not(.is-editing) {
+    transform: scale(0.992);
+  }
+
+  .prompt-glow {
+    pointer-events: none;
+    position: absolute;
+    top: -80px;
+    inset-inline-end: -60px;
+    width: 180px;
+    height: 180px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.16), transparent 68%);
+    opacity: 0.9;
+  }
+  .prompt-card.is-active .prompt-glow {
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.18), transparent 68%);
+  }
+
+  .prompt-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #eef2ff, #e0e7ff);
+    color: #4f46e5;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
+  }
+  .prompt-card.is-active .prompt-icon {
+    background: linear-gradient(180deg, #ecfdf5, #d1fae5);
+    color: #059669;
+  }
+
+  .prompt-paper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 14px;
+    padding: 12px 14px 10px;
+    background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+    border: 1px solid #e2e8f0;
+  }
+  .prompt-paper-dots {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+  }
+  .prompt-paper-dots span {
+    width: 7px;
+    height: 7px;
+    border-radius: 99px;
+    background: #cbd5e1;
+  }
+  .prompt-paper-dots span:nth-child(1) { background: #fda4af; }
+  .prompt-paper-dots span:nth-child(2) { background: #fcd34d; }
+  .prompt-paper-dots span:nth-child(3) { background: #86efac; }
+
+  .prompt-excerpt {
+    position: relative;
+    max-height: 4.6rem;
+    overflow: hidden;
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: #64748b;
+    direction: ltr;
+    text-align: left;
+  }
+  .prompt-paper::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 2.2rem;
+    background: linear-gradient(to top, #f1f5f9, transparent);
+    pointer-events: none;
+  }
+
+  .prompt-action {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
+                background-color 140ms ease,
+                color 140ms ease,
+                border-color 140ms ease;
+  }
+  .prompt-action:hover {
+    background: #eef2ff;
+    color: #4338ca;
+    border-color: #c7d2fe;
+  }
+  .prompt-action:active { transform: scale(0.96); }
+  .prompt-action.is-danger:hover {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+  }
+  .prompt-action.is-success:hover {
+    background: #ecfdf5;
+    color: #059669;
+    border-color: #a7f3d0;
+  }
+
+  .prompt-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 500;
+    color: #4338ca;
+    background: #eef2ff;
+    border: 1px solid #e0e7ff;
+    border-radius: 999px;
+    padding: 3px 9px;
+  }
+
+  .var-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4px 8px;
+    direction: ltr;
+  }
+
+  html.dark .prompt-card {
+    background: #0f172a;
+    border-color: #334155;
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.25);
+  }
+  html.dark .prompt-card.is-active {
+    border-color: rgba(129, 140, 248, 0.45);
+    box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.2), 0 14px 36px rgb(0 0 0 / 0.35);
+  }
+  html.dark .prompt-icon {
+    background: #1e1b4b;
+    color: #c7d2fe;
+    box-shadow: none;
+  }
+  html.dark .prompt-card.is-active .prompt-icon {
+    background: rgba(16, 185, 129, 0.16);
+    color: #6ee7b7;
+  }
+  html.dark .prompt-excerpt { color: #94a3b8; }
+  html.dark .prompt-paper {
+    background: linear-gradient(180deg, #1e293b, #172033);
+    border-color: #334155;
+  }
+  html.dark .prompt-paper::after {
+    background: linear-gradient(to top, #172033, transparent);
+  }
+  html.dark .prompt-action {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+  html.dark .prompt-action:hover {
+    background: #312e81;
+    color: #e0e7ff;
+    border-color: #4338ca;
+  }
+  html.dark .prompt-chip {
+    color: #c7d2fe;
+    background: rgba(99, 102, 241, 0.16);
+    border-color: rgba(129, 140, 248, 0.28);
+  }
+  html.dark .var-chip {
+    color: #cbd5e1;
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .prompt-card, .prompt-action { transition: none; }
+  }
+</style>
+{% endblock %}
+
 {% block header_actions %}
-<button onclick="document.getElementById('new-prompt-form').classList.toggle('hidden')"
+<button type="button" onclick="toggleNewPromptForm()"
         class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-4 py-1.5 rounded-lg transition-all hover:shadow-md hover:shadow-brand-500/20 active:scale-[0.97]">
   + قالب جدید
 </button>
@@ -13,25 +263,24 @@
 {% block content %}
 <div class="space-y-5">
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 text-[13px] text-slate-600 leading-relaxed">
-    هر قالب یک پرامپت واحد است. توضیح کوتاه و محتوای اصلی از همان خروجی ساخته می‌شوند.
-    می‌توانید از این متغیرها استفاده کنید:
-    <span class="inline-flex flex-wrap gap-1.5 mt-2">
-      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{product_name}</code>
-      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{brand}</code>
-      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{compatibility}</code>
-      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{reference_url}</code>
-      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{config_note}</code>
-      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{seo_keywords}</code>
-    </span>
-    <p class="text-[12px] text-slate-400 mt-2">خروجی باید با <span dir="ltr">[Short Description]</span> و سپس <span dir="ltr">[Main Description]</span> مشخص شود.</p>
+  <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm px-5 py-4">
+    <p class="text-[13px] text-slate-600 leading-relaxed">هر قالب یک پرامپت واحد است. توضیح کوتاه و محتوای اصلی از همان خروجی ساخته می‌شوند.</p>
+    <div class="flex flex-wrap gap-1.5 mt-3">
+      <span class="var-chip">{product_name}</span>
+      <span class="var-chip">{brand}</span>
+      <span class="var-chip">{gpu_model}</span>
+      <span class="var-chip">{compatibility}</span>
+      <span class="var-chip">{reference_url}</span>
+      <span class="var-chip">{config_note}</span>
+      <span class="var-chip">{seo_keywords}</span>
+    </div>
+    <p class="text-[12px] text-slate-400 mt-2.5">خروجی با <span dir="ltr">[Short Description]</span> و سپس <span dir="ltr">[Main Description]</span> مشخص می‌شود.</p>
   </div>
 
-  <!-- ── New Prompt Form (hidden by default) ── -->
   <div id="new-prompt-form" class="hidden">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6">
       <h3 class="text-[14px] font-semibold text-slate-800 mb-4">ایجاد قالب جدید</h3>
-      <form method="post" action="{% url 'sync_app:prompt_create' %}" class="space-y-4">
+      <form method="post" action="{% url 'sync_app:prompt_create' %}" class="space-y-4 prompt-editor-form">
         {% csrf_token %}
         <div>
           <label class="block text-[13px] font-medium text-slate-600 mb-1.5">عنوان قالب</label>
@@ -41,9 +290,7 @@
         </div>
         <div>
           <label class="block text-[13px] font-medium text-slate-600 mb-1.5">پرامپت کامل</label>
-          <textarea name="prompt" rows="16" required
-                    placeholder="کل پرامپت را اینجا بگذارید؛ توضیح کوتاه و محتوای اصلی را جدا نکنید…"
-                    class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition resize-y font-mono leading-relaxed"></textarea>
+          <textarea id="id_prompt_new" name="prompt"></textarea>
         </div>
         <div>
           <label class="block text-[13px] font-medium text-slate-600 mb-1.5">کلمات کلیدی پیش‌فرض (اختیاری)</label>
@@ -57,10 +304,10 @@
         </div>
         <div class="flex items-center gap-3 pt-2">
           <button type="submit"
-                  class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg transition-all active:scale-[0.97]">
+                  class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg transition-transform active:scale-[0.97]">
             ذخیره قالب
           </button>
-          <button type="button" onclick="document.getElementById('new-prompt-form').classList.add('hidden')"
+          <button type="button" onclick="toggleNewPromptForm(false)"
                   class="text-[13px] text-slate-500 hover:text-slate-700 transition-colors">
             انصراف
           </button>
@@ -69,93 +316,215 @@
     </div>
   </div>
 
-  <!-- ── Existing Templates ──────────── -->
+  <div class="prompt-grid">
   {% for prompt in prompts %}
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 {% if prompt.is_active %}ring-2 ring-brand-500/30{% endif %}">
-    <div class="flex items-start justify-between mb-4">
-      <div class="flex items-center gap-3">
-        <h3 class="text-[14px] font-semibold text-slate-800">{{ prompt.title }}</h3>
-        {% if prompt.is_active %}
-        <span class="text-[11px] font-medium bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 px-2 py-0.5 rounded-md">فعال ✓</span>
-        {% endif %}
+  <article id="prompt-card-{{ prompt.pk }}" class="prompt-card {% if prompt.is_active %}is-active{% endif %}">
+    <span class="prompt-glow" aria-hidden="true"></span>
+    <div class="relative p-5 pb-4 flex items-start justify-between gap-3">
+      <div class="flex items-start gap-3 min-w-0">
+        <div class="prompt-icon flex-shrink-0">
+          <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M7 4h7l5 5v11a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 class="text-[15px] font-semibold text-slate-800 truncate">{{ prompt.title }}</h3>
+            {% if prompt.is_active %}
+            <span class="text-[10px] font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/15 px-2 py-0.5 rounded-full">فعال</span>
+            {% endif %}
+          </div>
+          <p class="text-[11px] text-slate-400 mt-0.5">آخرین ویرایش {{ prompt.updated_at|timesince }} پیش</p>
+        </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 flex-shrink-0">
         {% if not prompt.is_active %}
         <form method="post" action="{% url 'sync_app:prompt_activate' prompt.pk %}">
           {% csrf_token %}
-          <button type="submit"
-                  class="text-[12px] text-brand-600 hover:text-brand-800 font-medium transition-colors">
-            فعال‌سازی
+          <button type="submit" class="prompt-action is-success" title="فعال‌سازی" aria-label="فعال‌سازی">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
           </button>
         </form>
         {% endif %}
-        <button type="button" onclick="document.getElementById('edit-prompt-{{ prompt.pk }}').classList.toggle('hidden')"
-                class="text-[12px] text-slate-500 hover:text-slate-700 font-medium transition-colors">
-          ویرایش
+        <button type="button" id="edit-toggle-{{ prompt.pk }}" onclick="togglePromptEdit({{ prompt.pk }})"
+                class="prompt-action" title="ویرایش" aria-label="ویرایش">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M4 20h4.586a1 1 0 00.707-.293l9.414-9.414a2 2 0 000-2.828l-3.172-3.172a2 2 0 00-2.828 0L3.293 13.707A1 1 0 003 14.414V19a1 1 0 001 1z"/>
+          </svg>
         </button>
         <form method="post" action="{% url 'sync_app:prompt_delete' prompt.pk %}"
               onsubmit="return confirm('آیا از حذف این قالب مطمئن هستید؟')">
           {% csrf_token %}
-          <button type="submit"
-                  class="text-[12px] text-red-500 hover:text-red-700 font-medium transition-colors">
-            حذف
+          <button type="submit" class="prompt-action is-danger" title="حذف" aria-label="حذف">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a1 1 0 011-1h4a1 1 0 011 1v2M4 7h16"/>
+            </svg>
           </button>
         </form>
       </div>
     </div>
 
-    {% if prompt.keyword_words %}
-    <div class="mb-4">
-      <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">کلمات کلیدی</p>
-      <div class="flex flex-wrap gap-1.5">
-        {% for word in prompt.keyword_words %}
-        <span class="inline-flex items-center text-[11px] font-medium bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200 px-2 py-0.5 rounded-md">{{ word }}</span>
-        {% endfor %}
+    <div id="prompt-view-{{ prompt.pk }}" class="relative px-5 pb-5 flex-1 flex flex-col">
+      <div class="prompt-paper mb-4">
+        <div class="prompt-paper-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p class="prompt-excerpt">{% if prompt.excerpt %}{{ prompt.excerpt }}{% else %}هنوز متنی برای این قالب نوشته نشده است.{% endif %}</p>
+      </div>
+      <div class="flex items-center justify-between gap-3 mt-auto pt-1 border-t border-slate-100">
+        <div class="flex flex-wrap gap-1.5 min-w-0">
+          {% if prompt.keyword_words %}
+            {% for word in prompt.keyword_words %}
+            <span class="prompt-chip">{{ word }}</span>
+            {% endfor %}
+          {% else %}
+            <span class="text-[11px] text-slate-400">بدون کلمه کلیدی پیش‌فرض</span>
+          {% endif %}
+        </div>
       </div>
     </div>
-    {% endif %}
 
-    <div class="bg-slate-50 rounded-lg p-4 text-[13px] text-slate-600 leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap font-mono">{{ prompt.prompt }}</div>
-
-    <form id="edit-prompt-{{ prompt.pk }}" method="post" action="{% url 'sync_app:prompt_update' prompt.pk %}" class="hidden mt-4 space-y-4">
+    <form id="edit-prompt-{{ prompt.pk }}" method="post" action="{% url 'sync_app:prompt_update' prompt.pk }}" class="hidden relative px-5 pb-5 space-y-4 prompt-editor-form">
       {% csrf_token %}
       <div>
         <label class="block text-[13px] font-medium text-slate-600 mb-1.5">عنوان قالب</label>
         <input type="text" name="title" value="{{ prompt.title }}" required
-               class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+               class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400">
       </div>
       <div>
         <label class="block text-[13px] font-medium text-slate-600 mb-1.5">پرامپت کامل</label>
-        <textarea name="prompt" rows="16" required
-                  class="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition resize-y font-mono leading-relaxed">{{ prompt.prompt }}</textarea>
+        <textarea id="id_prompt_{{ prompt.pk }}" name="prompt">{{ prompt.prompt }}</textarea>
       </div>
       <div>
         <label class="block text-[13px] font-medium text-slate-600 mb-1.5">کلمات کلیدی پیش‌فرض (اختیاری)</label>
         {% include "sync_app/partials/keyword_multiselect.html" with selected_ids=prompt.selected_keyword_ids %}
       </div>
-      <button type="submit"
-              class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg transition-all active:scale-[0.97]">
-        ذخیره تغییرات
-      </button>
+      <div class="flex items-center gap-3">
+        <button type="submit"
+                class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg transition-transform active:scale-[0.97]">
+          ذخیره تغییرات
+        </button>
+        <button type="button" onclick="togglePromptEdit({{ prompt.pk }}, false)"
+                class="text-[13px] text-slate-500 hover:text-slate-700 transition-colors">
+          انصراف
+        </button>
+      </div>
     </form>
-
-    <p class="text-[11px] text-slate-400 mt-3">آخرین ویرایش: {{ prompt.updated_at|timesince }} پیش</p>
-  </div>
+  </article>
   {% empty %}
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
-    <svg class="w-10 h-10 text-slate-200 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-    </svg>
-    <p class="text-sm text-slate-400">هنوز قالب پرامپتی ایجاد نشده است.</p>
+  <div class="col-span-full bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
+    <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center">
+      <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+      </svg>
+    </div>
+    <p class="text-sm font-medium text-slate-600">هنوز قالب پرامپتی ایجاد نشده است.</p>
     <p class="text-[12px] text-slate-400 mt-1">برای شروع، یک قالب جدید بسازید.</p>
   </div>
   {% endfor %}
+  </div>
 
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+  function promptContentStyle() {
+    return [
+      "body { font-family: Vazirmatn, Tahoma, sans-serif; font-size: 14px; line-height: 2; background: #ffffff; color: #334155; }",
+      "body.theme-dark { background: #0f172a; color: #e2e8f0; }",
+    ].join(' ');
+  }
+
+  function applyEditorTheme(editor) {
+    const dark = document.documentElement.classList.contains('dark');
+    const body = editor.getBody();
+    const doc = editor.getDoc();
+    if (doc && doc.documentElement) {
+      doc.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      doc.documentElement.style.background = dark ? '#0f172a' : '#ffffff';
+    }
+    if (body) {
+      body.classList.toggle('theme-dark', dark);
+      body.style.backgroundColor = dark ? '#0f172a' : '#ffffff';
+      body.style.color = dark ? '#e2e8f0' : '#334155';
+    }
+  }
+
+  function initPromptEditor(selector) {
+    if (!window.tinymce) return;
+    const id = selector.replace(/^#/, '');
+    if (tinymce.get(id)) {
+      tinymce.get(id).dispatch('ResizeEditor');
+      return;
+    }
+    tinymce.init({
+      license_key: 'gpl',
+      selector,
+      directionality: 'ltr',
+      menubar: false,
+      branding: false,
+      promotion: false,
+      relative_urls: false,
+      convert_urls: false,
+      entity_encoding: 'raw',
+      plugins: 'lists link table code autoresize',
+      toolbar: 'undo redo | blocks | bold italic underline | alignright aligncenter alignleft | bullist numlist | link table | removeformat | code',
+      min_height: 420,
+      protect: [
+        /\{[a-z_]+\}/g,
+        /\[Short Description\]/gi,
+        /\[Main Description\]/gi,
+      ],
+      content_style: promptContentStyle(),
+      body_class: document.documentElement.classList.contains('dark') ? 'theme-dark' : '',
+      setup(editor) {
+        editor.on('init', () => applyEditorTheme(editor));
+      },
+    });
+  }
+
+  function savePromptEditors() {
+    if (!window.tinymce) return;
+    document.querySelectorAll('textarea[name="prompt"]').forEach((el) => {
+      const editor = tinymce.get(el.id);
+      if (editor) editor.save();
+    });
+  }
+
+  function toggleNewPromptForm(force) {
+    const box = document.getElementById('new-prompt-form');
+    const show = force === undefined ? box.classList.contains('hidden') : force;
+    box.classList.toggle('hidden', !show);
+    if (show) {
+      requestAnimationFrame(() => initPromptEditor('#id_prompt_new'));
+    }
+  }
+
+  function togglePromptEdit(pk, force) {
+    const card = document.getElementById('prompt-card-' + pk);
+    const view = document.getElementById('prompt-view-' + pk);
+    const form = document.getElementById('edit-prompt-' + pk);
+    const button = document.getElementById('edit-toggle-' + pk);
+    const show = force === undefined ? form.classList.contains('hidden') : force;
+    view.classList.toggle('hidden', show);
+    form.classList.toggle('hidden', !show);
+    card.classList.toggle('is-editing', show);
+    if (button) {
+      button.setAttribute('aria-pressed', show ? 'true' : 'false');
+      button.title = show ? 'انصراف' : 'ویرایش';
+    }
+    if (show) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => initPromptEditor('#id_prompt_' + pk));
+      });
+    }
+  }
+
+  document.querySelectorAll('.prompt-editor-form').forEach((form) => {
+    form.addEventListener('submit', savePromptEditors);
+  });
+
   function syncKeywordPicker(picker) {
     const summary = picker.querySelector('[data-picker-summary]');
     const checked = [...picker.querySelectorAll('input[name="keyword_ids"]:checked')];

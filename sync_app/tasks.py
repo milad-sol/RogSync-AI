@@ -16,7 +16,7 @@ from woocommerce import API as WooAPI
 
 from .content import embed_images_after_paragraphs
 from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate, GlobalKeyword
-from .prompts import build_generation_prompt, split_generated_content
+from .prompts import build_generation_prompt, select_injection_keywords, split_generated_content
 
 logger = logging.getLogger(__name__)
 
@@ -284,12 +284,6 @@ def process_ai_rewrite_task(self, product_id: int):
 
     try:
         # ── Step 1: Handle SEO keywords ────────
-        global_kws = list(
-            GlobalKeyword.objects.filter(is_active=True)
-            .order_by("-priority")
-            .values_list("word", flat=True)
-        )
-
         merged_kws = []
         for kw_source in [product.target_keywords, prompt_template.target_keywords]:
             if kw_source:
@@ -315,10 +309,12 @@ def process_ai_rewrite_task(self, product_id: int):
             )
             product.target_keywords = keywords_result.strip()
 
-        seo_keywords = []
-        for kw in list(product.keywords_list) + list(global_kws):
-            if kw and kw not in seo_keywords:
-                seo_keywords.append(kw)
+        seo_candidates = [(word, 3) for word in product.keywords_list]
+        seo_candidates.extend(
+            (item.word, item.priority)
+            for item in GlobalKeyword.objects.filter(is_active=True)
+        )
+        seo_keywords = select_injection_keywords(product, seo_candidates, limit=8)
 
         # ── Step 2: Generate short + main copy together ──
         user_prompt = build_generation_prompt(
@@ -327,7 +323,10 @@ def process_ai_rewrite_task(self, product_id: int):
             ", ".join(seo_keywords),
         )
         generated = _openrouter_chat(
-            system_prompt="Follow the user prompt exactly. Output only the requested sections.",
+            system_prompt=(
+                "Follow the user prompt exactly. Output only the requested sections. "
+                "Published copy must be 100% Persian except Latin technical tokens."
+            ),
             user_prompt=user_prompt,
         )
         short_html, main_html = split_generated_content(generated)

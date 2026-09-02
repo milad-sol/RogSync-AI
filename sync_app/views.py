@@ -13,6 +13,8 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.html import strip_tags
+from django.utils.text import Truncator
 from django.views.decorators.http import require_POST
 
 from .content import strip_keyword_marks
@@ -161,6 +163,7 @@ def _attach_selected_keyword_ids(prompts, keywords):
                 selected.append(word_to_id[word])
         prompt.selected_keyword_ids = selected
         prompt.keyword_words = words
+        prompt.excerpt = Truncator(strip_tags(prompt.prompt or "")).chars(170)
 
 
 def prompt_list_view(request):

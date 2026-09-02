@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 
-from sync_app.prompts import fill_placeholders, split_generated_content
+from sync_app.prompts import fill_placeholders, select_injection_keywords, split_generated_content
 
 
 class PromptHelpersTests(SimpleTestCase):
@@ -31,3 +31,27 @@ class PromptHelpersTests(SimpleTestCase):
         )
         self.assertIn("هدست", short)
         self.assertIn("<h2>بررسی</h2>", main)
+
+    def test_select_closest_keywords(self):
+        product = type("P", (), {
+            "title": "لپ تاپ گیمینگ ایسوس TUF A15 RTX 4050",
+            "original_short_desc": "پردازنده Ryzen 7 رم 16 گیگابایت",
+            "original_desc": "",
+            "source_category_label": "لپ تاپ گیمینگ",
+            "target_category_label": "",
+            "attributes": [{"name": "GPU", "options": ["RTX 4050"]}],
+        })()
+        selected = select_injection_keywords(
+            product,
+            [
+                ("لپ تاپ گیمینگ", 2),
+                ("ایسوس تاف", 2),
+                ("دسته بازی PS5", 3),
+                ("خرید آنلاین", 3),
+                ("هدست استریم", 1),
+            ],
+            limit=4,
+        )
+        self.assertIn("لپ تاپ گیمینگ", selected)
+        self.assertNotIn("دسته بازی PS5", selected)
+        self.assertNotIn("هدست استریم", selected)
