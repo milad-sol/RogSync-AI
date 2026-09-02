@@ -7,6 +7,7 @@ PLACEHOLDER_KEYS = (
     "product_name",
     "brand",
     "compatibility",
+    "gpu_model",
     "reference_url",
     "config_note",
     "seo_keywords",
@@ -25,6 +26,7 @@ _TAG_RE = re.compile(r"<[^>]+>")
 
 _BRAND_NAMES = ("brand", "برند", "سازنده", "manufacturer")
 _COMPAT_NAMES = ("compatibility", "سازگاری", "compatible", "پلتفرم", "platform")
+_GPU_NAMES = ("gpu", "vga", "گرافیک", "graphics", "video card")
 
 
 def fill_placeholders(template: str, values: dict) -> str:
@@ -56,6 +58,7 @@ def prompt_variables(product, seo_keywords: str) -> dict:
         "product_name": product.title or "",
         "brand": _attribute_value(attributes, _BRAND_NAMES),
         "compatibility": _attribute_value(attributes, _COMPAT_NAMES),
+        "gpu_model": _attribute_value(attributes, _GPU_NAMES),
         "reference_url": getattr(product, "source_permalink", "") or "",
         "config_note": (product.original_short_desc or "").strip(),
         "seo_keywords": seo_keywords or "",

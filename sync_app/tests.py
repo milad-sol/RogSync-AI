@@ -6,10 +6,10 @@ from sync_app.prompts import fill_placeholders, split_generated_content
 class PromptHelpersTests(SimpleTestCase):
     def test_fill_placeholders_leaves_other_braces(self):
         text = fill_placeholders(
-            "Product {product_name} | {Accessory Type} | {seo_keywords}",
-            {"product_name": "دسته DualSense", "seo_keywords": "خرید دسته"},
+            "Product {product_name} | {Accessory Type} | {seo_keywords} | {gpu_model}",
+            {"product_name": "دسته DualSense", "seo_keywords": "خرید دسته", "gpu_model": "RTX 4050"},
         )
-        self.assertEqual(text, "Product دسته DualSense | {Accessory Type} | خرید دسته")
+        self.assertEqual(text, "Product دسته DualSense | {Accessory Type} | خرید دسته | RTX 4050")
 
     def test_split_marked_sections(self):
         raw = """
