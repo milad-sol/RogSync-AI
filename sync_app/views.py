@@ -144,7 +144,6 @@ def ai_settings_view(request):
     if request.method == "POST":
         settings_obj.openrouter_api_key = request.POST.get("openrouter_api_key", "").strip()
         settings_obj.openrouter_model = request.POST.get("openrouter_model", "").strip() or "openai/gpt-4o"
-        settings_obj.global_keywords = request.POST.get("global_keywords", "").strip()
         settings_obj.save()
         saved = True
 
@@ -166,7 +165,7 @@ def keyword_list_view(request):
         
     keywords = keywords.order_by("-priority", "-created_at")
 
-    if request.htmx:
+    if request.headers.get("HX-Request"):
         return render(request, "sync_app/partials/keyword_rows.html", {
             "keywords": keywords,
         })
@@ -191,7 +190,7 @@ def keyword_create_view(request):
         )
     
     # After creation, if it's HTMX, return the updated list or just redirect
-    if request.htmx:
+    if request.headers.get("HX-Request"):
         keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
         return render(request, "sync_app/partials/keyword_rows.html", {
             "keywords": keywords,
@@ -206,7 +205,7 @@ def keyword_toggle_view(request, pk):
     keyword.is_active = not keyword.is_active
     keyword.save()
     
-    if request.htmx:
+    if request.headers.get("HX-Request"):
         keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
         return render(request, "sync_app/partials/keyword_rows.html", {
             "keywords": keywords,
@@ -220,7 +219,7 @@ def keyword_delete_view(request, pk):
     keyword = get_object_or_404(GlobalKeyword, pk=pk)
     keyword.delete()
     
-    if request.htmx:
+    if request.headers.get("HX-Request"):
         keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
         return render(request, "sync_app/partials/keyword_rows.html", {
             "keywords": keywords,

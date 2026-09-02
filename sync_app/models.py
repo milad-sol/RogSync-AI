@@ -295,12 +295,6 @@ class AiSettings(models.Model):
         verbose_name="مدل AI",
         help_text="مثال: openai/gpt-4o, anthropic/claude-3.5-sonnet",
     )
-    global_keywords = models.TextField(
-        blank=True,
-        default="",
-        verbose_name="کلمات کلیدی سراسری",
-        help_text="کلمات کلیدی که روی تمام محصولات اعمال می‌شوند",
-    )
 
     updated_at = models.DateTimeField(auto_now=True)
 
