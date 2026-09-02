@@ -2,10 +2,12 @@ from django.core.management.base import BaseCommand
 
 from sync_app.content import embed_images_after_paragraphs
 from sync_app.models import GlobalKeyword, ProductSync, PromptTemplate
+from sync_app.sku import assign_skus
 
 
 DEMO_SOURCE_ID = 888001
 DEMO_VARIABLE_SOURCE_ID = 888002
+DEMO_SKU_VARIABLE_SOURCE_ID = 888003
 
 
 class Command(BaseCommand):
@@ -168,4 +170,118 @@ class Command(BaseCommand):
         var_action = "created" if var_created else "updated"
         self.stdout.write(self.style.SUCCESS(
             f"Variable demo {var_action}: /products/{variable_product.pk}/review/"
+        ))
+
+        sku_images = [
+            {"src": "https://picsum.photos/id/250/900/700", "alt": "مانیتور گیمینگ سامسونگ Odyssey بیست‌وهفت اینچ"},
+            {"src": "https://picsum.photos/id/251/900/700", "alt": "مانیتور گیمینگ سامسونگ Odyssey سی‌ودو اینچ"},
+        ]
+        sku_desc = """
+<p>مانیتور گیمینگ سامسونگ Odyssey برای میز بازی طراحی شده تا تصویر پایدار و رنگ یکدست بدهد.</p>
+<p>نرخ نوسازی در این سری نقش اصلی را دارد؛ بسته به کارت گرافیک می‌توانید ۱۶۵ یا ۲۴۰ هرتز را انتخاب کنید.</p>
+<p>در خرید آنلاین مانیتور گیمینگ، اندازه صفحه را کنار نرخ نوسازی ببینید تا با فضای میز و سبک بازیتان جور دربیاید.</p>
+<p>اگر به گارانتی اصل اهمیت می‌دهید، سامسونگ Odyssey با پشتیبانی رسمی عرضه می‌شود.</p>
+<p>چهار ترکیب واقعی این محصول این‌ها هستند: ۲۷ اینچ با ۱۶۵ هرتز، ۲۷ اینچ با ۲۴۰ هرتز، ۳۲ اینچ با ۱۶۵ هرتز و ۳۲ اینچ با ۲۴۰ هرتز.</p>
+""".strip()
+        sku_desc = embed_images_after_paragraphs(sku_desc, sku_images)
+
+        sku_product, sku_created = ProductSync.objects.update_or_create(
+            source_id=DEMO_SKU_VARIABLE_SOURCE_ID,
+            defaults={
+                "title": "مانیتور گیمینگ سامسونگ Odyssey — نسخه دمو SKU",
+                "original_slug": "samsung-odyssey-monitor-sku-demo",
+                "target_slug": "samsung-odyssey-monitor-sku-demo",
+                "product_type": ProductSync.ProductType.VARIABLE,
+                "target_sku": "",
+                "target_keywords": "مانیتور گیمینگ, سامسونگ Odyssey, نرخ نوسازی",
+                "original_desc": "<p>مانیتور گیمینگ سامسونگ Odyssey با چند اندازه و نرخ نوسازی.</p>",
+                "original_short_desc": "<p>مانیتور گیمینگ متغیر.</p>",
+                "generated_desc": sku_desc,
+                "generated_short_desc": (
+                    "<p>مانیتور گیمینگ سامسونگ Odyssey با نرخ نوسازی بالا "
+                    "برای خرید آنلاین و گارانتی اصل.</p>"
+                ),
+                "images_data": sku_images,
+                "attributes": [
+                    {
+                        "id": 11,
+                        "name": "اندازه",
+                        "variation": True,
+                        "visible": True,
+                        "options": ["27 اینچ", "32 اینچ"],
+                    },
+                    {
+                        "id": 12,
+                        "name": "نرخ نوسازی",
+                        "variation": True,
+                        "visible": True,
+                        "options": ["165Hz", "240Hz"],
+                    },
+                ],
+                "variations_data": [
+                    {
+                        "id": 92001,
+                        "sku": "",
+                        "regular_price": "18900000",
+                        "sale_price": "17500000",
+                        "stock_status": "instock",
+                        "stock_quantity": 8,
+                        "image": {"src": sku_images[0]["src"]},
+                        "attributes": [
+                            {"name": "اندازه", "option": "27 اینچ"},
+                            {"name": "نرخ نوسازی", "option": "165Hz"},
+                        ],
+                    },
+                    {
+                        "id": 92002,
+                        "sku": "",
+                        "regular_price": "21900000",
+                        "sale_price": "",
+                        "stock_status": "instock",
+                        "stock_quantity": 4,
+                        "image": {"src": sku_images[0]["src"]},
+                        "attributes": [
+                            {"name": "اندازه", "option": "27 اینچ"},
+                            {"name": "نرخ نوسازی", "option": "240Hz"},
+                        ],
+                    },
+                    {
+                        "id": 92003,
+                        "sku": "",
+                        "regular_price": "24900000",
+                        "sale_price": "23500000",
+                        "stock_status": "instock",
+                        "stock_quantity": 5,
+                        "image": {"src": sku_images[1]["src"]},
+                        "attributes": [
+                            {"name": "اندازه", "option": "32 اینچ"},
+                            {"name": "نرخ نوسازی", "option": "165Hz"},
+                        ],
+                    },
+                    {
+                        "id": 92004,
+                        "sku": "",
+                        "regular_price": "28900000",
+                        "sale_price": "",
+                        "stock_status": "onbackorder",
+                        "stock_quantity": None,
+                        "image": {"src": sku_images[1]["src"]},
+                        "attributes": [
+                            {"name": "اندازه", "option": "32 اینچ"},
+                            {"name": "نرخ نوسازی", "option": "240Hz"},
+                        ],
+                    },
+                ],
+                "source_categories": [{"id": 31, "name": "مانیتور", "slug": "monitor"}],
+                "target_categories": [],
+                "prompt_template": prompt,
+                "status": ProductSync.Status.READY_FOR_REVIEW,
+            },
+        )
+        assign_skus(sku_product)
+        sku_product.save(update_fields=["target_sku", "variations_data", "updated_at"])
+        sku_action = "created" if sku_created else "updated"
+        self.stdout.write(self.style.SUCCESS(
+            f"SKU variable demo {sku_action}: /products/{sku_product.pk}/review/ "
+            f"({sku_product.target_sku})"
         ))
