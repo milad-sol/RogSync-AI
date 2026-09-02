@@ -24,12 +24,46 @@
 
 ## پیش‌نیازها
 
-- Python 3.11+
-- Redis (برای Celery)
+- [Docker](https://docs.docker.com/get-docker/) و Docker Compose
 - کلید WooCommerce مبدأ و مقصد
 - کلید [OpenRouter](https://openrouter.ai)
 
-## نصب
+برای اجرای بدون Docker: Python 3.11+ و Redis.
+
+## اجرا با Docker (پیشنهادی)
+
+دیتابیس داخل Compose همیشه **Postgres** است. Redis و Celery هم همراه اپ بالا می‌آیند.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+سپس باز کنید: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+اگر همین پورت را سرور محلی گرفته باشد، اول آن را متوقف کنید.
+
+```bash
+docker compose exec web python manage.py seed_demo_product
+```
+
+کلیدهای ووکامرس و OpenRouter را در `.env` یا از داخل اپ در **تنظیمات API** و **تنظیمات هوش مصنوعی** بگذارید.
+
+## ساخت کاربر
+
+کاربر ادمین برای ورود به پنل و [ادمین جنگو](http://127.0.0.1:8000/admin/) لازم است:
+
+```bash
+# Docker
+docker compose exec web python manage.py createsuperuser
+
+# بدون Docker
+python manage.py createsuperuser
+```
+
+نام کاربری، ایمیل و رمز را وارد کنید. بعد از ساخت، از همان کاربر در پنل استفاده کنید.
+
+## نصب بدون Docker
 
 ```bash
 python -m venv .venv
@@ -37,12 +71,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 python manage.py migrate
-python manage.py createsuperuser
 ```
 
-فایل `.env` را پر کنید. کلیدهای ووکامرس و OpenRouter را می‌توانید بعداً از داخل اپ هم در **تنظیمات API** و **تنظیمات هوش مصنوعی** ذخیره کنید.
+`USE_POSTGRES` را `false` بگذارید تا SQLite استفاده شود.
 
-## اجرا
+## اجرای بدون Docker
 
 در سه ترمینال جدا:
 
@@ -56,10 +89,6 @@ redis-server
 # صف AI و ارسال
 celery -A rogsync worker -l info
 ```
-
-سپس باز کنید: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-
-بعد از تغییر امضای تسک‌های Celery، worker را یک‌بار ری‌استارت کنید.
 
 ## ساختار
 
@@ -88,6 +117,8 @@ celery -A rogsync worker -l info
 
 ```bash
 python manage.py seed_demo_product
+# یا با Docker:
+docker compose exec web python manage.py seed_demo_product
 ```
 
 یک محصول ساده و یک محصول متغیر نمونه می‌سازد تا صفحه بررسی را ببینید.

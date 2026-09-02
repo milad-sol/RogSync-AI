@@ -1,7 +1,6 @@
 """
 RogSync AI — Django Settings
 """
-import os
 from pathlib import Path
 
 from decouple import config, Csv
@@ -16,7 +15,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ──────────────────────────────────────────────
 SECRET_KEY = config("SECRET_KEY", default="insecure-dev-key-change-me")
 DEBUG = config("DEBUG", default=True, cast=bool)
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1,web", cast=Csv())
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default="http://localhost:8000,http://127.0.0.1:8000",
+    cast=Csv(),
+)
 
 # ──────────────────────────────────────────────
 # Application definition
@@ -34,6 +38,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -63,14 +68,28 @@ TEMPLATES = [
 WSGI_APPLICATION = "rogsync.wsgi.application"
 
 # ──────────────────────────────────────────────
-# Database (SQLite for dev)
+# Database (Postgres in Docker; SQLite locally unless USE_POSTGRES=true)
 # ──────────────────────────────────────────────
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+USE_POSTGRES = config("USE_POSTGRES", default=False, cast=bool)
+if USE_POSTGRES:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": config("POSTGRES_DB", default="rogsync"),
+            "USER": config("POSTGRES_USER", default="rogsync"),
+            "PASSWORD": config("POSTGRES_PASSWORD", default="rogsync"),
+            "HOST": config("POSTGRES_HOST", default="db"),
+            "PORT": config("POSTGRES_PORT", default="5432"),
+            "CONN_MAX_AGE": 60,
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # ──────────────────────────────────────────────
 # Internationalization
@@ -84,7 +103,8 @@ USE_TZ = True
 # Static files
 # ──────────────────────────────────────────────
 STATIC_URL = "static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+_static_dir = BASE_DIR / "static"
+STATICFILES_DIRS = [_static_dir] if _static_dir.exists() else []
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
