@@ -13,19 +13,15 @@ from django.db import models
 #  PromptTemplate
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 class PromptTemplate(models.Model):
-    """Stores prompt instructions used by the AI rewrite pipeline."""
+    """Stores a single AI prompt that generates short + main product copy together."""
 
     title = models.CharField(
         max_length=200,
         verbose_name="عنوان قالب",
     )
-    main_desc_prompt = models.TextField(
-        verbose_name="پرامپت توضیحات اصلی",
-        help_text="دستورالعمل بازنویسی توضیحات اصلی محصول",
-    )
-    short_desc_prompt = models.TextField(
-        verbose_name="پرامپت توضیحات کوتاه",
-        help_text="دستورالعمل بازنویسی توضیحات کوتاه محصول",
+    prompt = models.TextField(
+        verbose_name="پرامپت",
+        help_text="یک پرامپت واحد که هم توضیح کوتاه و هم محتوای اصلی را تولید می‌کند. از {product_name} و {seo_keywords} استفاده کنید.",
     )
     is_active = models.BooleanField(
         default=False,
@@ -137,6 +133,12 @@ class ProductSync(models.Model):
         default="",
         verbose_name="توضیحات کوتاه تولید شده",
     )
+    source_permalink = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        verbose_name="لینک محصول منبع",
+    )
 
     # ── Structured data (JSON) ─────────────
     attributes = models.JSONField(
@@ -199,14 +201,14 @@ class ProductSync(models.Model):
     # ── Convenience properties ─────────────
     @property
     def status_badge_classes(self):
-        """Return Tailwind classes for status badges (light theme)."""
+        """Return Tailwind classes for status badges in light and dark themes."""
         return {
-            self.Status.FETCHED: "bg-sky-50 text-sky-700 ring-sky-600/20",
-            self.Status.AI_PROCESSING: "bg-amber-50 text-amber-700 ring-amber-600/20",
-            self.Status.READY_FOR_REVIEW: "bg-violet-50 text-violet-700 ring-violet-600/20",
-            self.Status.APPROVED: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-            self.Status.SYNCED: "bg-teal-50 text-teal-700 ring-teal-600/20",
-        }.get(self.status, "bg-gray-50 text-gray-700 ring-gray-600/20")
+            self.Status.FETCHED: "bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-400/30",
+            self.Status.AI_PROCESSING: "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/30",
+            self.Status.READY_FOR_REVIEW: "bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-400/30",
+            self.Status.APPROVED: "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/30",
+            self.Status.SYNCED: "bg-teal-50 text-teal-700 ring-teal-600/20 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-400/30",
+        }.get(self.status, "bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-500/30")
 
     @property
     def keywords_list(self):

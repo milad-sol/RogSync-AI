@@ -16,6 +16,7 @@ from woocommerce import API as WooAPI
 
 from .content import embed_images_after_paragraphs
 from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate, GlobalKeyword
+from .prompts import build_generation_prompt, split_generated_content
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +147,9 @@ def _openrouter_chat(system_prompt: str, user_prompt: str) -> str:
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.7,
+            "max_tokens": 8000,
         },
-        timeout=120,
+        timeout=180,
     )
     response.raise_for_status()
     data = response.json()
@@ -228,6 +230,7 @@ def fetch_products_task(self, category_id: int, limit=None):
                         "product_type": product.get("type", "simple"),
                         "original_desc": product.get("description", ""),
                         "original_short_desc": product.get("short_description", ""),
+                        "source_permalink": product.get("permalink", "") or "",
                         "attributes": attributes,
                         "images_data": images_data,
                         "variations_data": variations_data,
@@ -260,10 +263,9 @@ def fetch_products_task(self, category_id: int, limit=None):
 def process_ai_rewrite_task(self, product_id: int):
     """
     Use the active PromptTemplate + OpenRouter to:
-      1. Generate SEO target keywords from the product title.
-      2. Rewrite the main description (preserving HTML structure and links).
-      3. Lightly tweak the short description.
-      4. Generate SEO-optimized alt text for images.
+      1. Resolve SEO keywords.
+      2. Generate short + main copy in one prompt.
+      3. Generate SEO-optimized alt text for images.
     """
     try:
         product = ProductSync.objects.get(pk=product_id)
@@ -282,30 +284,25 @@ def process_ai_rewrite_task(self, product_id: int):
 
     try:
         # ── Step 1: Handle SEO keywords ────────
-        # Merge keywords from 2 sources: product, template (global keywords handled separately)
-        ai_settings = AiSettings.load()
-        
-        # Get active global keywords ordered by priority descending
-        global_kws = list(GlobalKeyword.objects.filter(is_active=True).order_by("-priority").values_list("word", flat=True))
-        global_kws_str = ", ".join(global_kws)
-        
+        global_kws = list(
+            GlobalKeyword.objects.filter(is_active=True)
+            .order_by("-priority")
+            .values_list("word", flat=True)
+        )
+
         merged_kws = []
         for kw_source in [product.target_keywords, prompt_template.target_keywords]:
             if kw_source:
-                # Split by comma and strip whitespace
-                kws = [k.strip() for k in kw_source.split(",") if k.strip()]
-                merged_kws.extend(kws)
-                
-        # Deduplicate while preserving order
+                merged_kws.extend(k.strip() for k in kw_source.split(",") if k.strip())
+
         unique_kws = []
         for kw in merged_kws:
             if kw not in unique_kws:
                 unique_kws.append(kw)
-                
+
         if unique_kws:
             product.target_keywords = ", ".join(unique_kws)
         else:
-            # Fall back to auto-generation
             keywords_prompt = (
                 "You are an SEO expert. Given the following product title, generate "
                 "5-8 highly relevant SEO keywords in the same language as the title. "
@@ -318,45 +315,30 @@ def process_ai_rewrite_task(self, product_id: int):
             )
             product.target_keywords = keywords_result.strip()
 
-        # ── Step 2: Rewrite main description ───
-        if product.original_desc:
-            global_kws_instruction = ""
-            if global_kws_str:
-                global_kws_instruction = f"- CRITICAL: You must naturally inject these high-priority global keywords into the generated product description based on relevance: {global_kws_str}\n"
+        seo_keywords = []
+        for kw in list(product.keywords_list) + list(global_kws):
+            if kw and kw not in seo_keywords:
+                seo_keywords.append(kw)
 
-            main_prompt = (
-                f"{prompt_template.main_desc_prompt}\n\n"
-                f"Target SEO keywords: {product.target_keywords}\n\n"
-                f"IMPORTANT RULES:\n"
-                f"- You MUST preserve ALL original HTML tags, links, and structure.\n"
-                f"- Inject the keywords naturally into the text.\n"
-                f"{global_kws_instruction}"
-                f"- Write the description as multiple HTML <p> paragraphs, not one long block.\n"
-                f"- Do NOT insert images; the system adds product photos after each paragraph.\n"
-                f"- The output must be unique and not duplicate the original.\n"
-                f"- Return ONLY the rewritten HTML, no explanations.\n\n"
-                f"Original HTML description:\n{product.original_desc}"
-            )
-            product.generated_desc = _openrouter_chat(
-                system_prompt="You are a professional product copywriter and SEO specialist.",
-                user_prompt=main_prompt,
-            ).strip()
+        # ── Step 2: Generate short + main copy together ──
+        user_prompt = build_generation_prompt(
+            prompt_template.prompt,
+            product,
+            ", ".join(seo_keywords),
+        )
+        generated = _openrouter_chat(
+            system_prompt="Follow the user prompt exactly. Output only the requested sections.",
+            user_prompt=user_prompt,
+        )
+        short_html, main_html = split_generated_content(generated)
+        if not short_html and not main_html:
+            raise ValueError("AI returned empty content.")
+        if short_html:
+            product.generated_short_desc = short_html
+        if main_html:
+            product.generated_desc = main_html
 
-        # ── Step 3: Rewrite short description ──
-        if product.original_short_desc:
-            short_prompt = (
-                f"{prompt_template.short_desc_prompt}\n\n"
-                f"Target SEO keywords: {product.target_keywords}\n\n"
-                f"IMPORTANT: Make only a minor tweak. Do NOT change it drastically. "
-                f"Preserve the HTML tags. Return ONLY the rewritten HTML.\n\n"
-                f"Original short description:\n{product.original_short_desc}"
-            )
-            product.generated_short_desc = _openrouter_chat(
-                system_prompt="You are a product copywriter.",
-                user_prompt=short_prompt,
-            ).strip()
-
-        # ── Step 4: Generate image alt texts ───
+        # ── Step 3: Generate image alt texts ───
         if product.images_data:
             updated_images = []
             for img in product.images_data:

@@ -13,6 +13,20 @@
 {% block content %}
 <div class="space-y-5">
 
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 text-[13px] text-slate-600 leading-relaxed">
+    هر قالب یک پرامپت واحد است. توضیح کوتاه و محتوای اصلی از همان خروجی ساخته می‌شوند.
+    می‌توانید از این متغیرها استفاده کنید:
+    <span class="inline-flex flex-wrap gap-1.5 mt-2">
+      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{product_name}</code>
+      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{brand}</code>
+      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{compatibility}</code>
+      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{reference_url}</code>
+      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{config_note}</code>
+      <code class="bg-slate-50 text-slate-700 px-1.5 py-0.5 rounded text-[12px] font-mono" dir="ltr">{seo_keywords}</code>
+    </span>
+    <p class="text-[12px] text-slate-400 mt-2">خروجی باید با <span dir="ltr">[Short Description]</span> و سپس <span dir="ltr">[Main Description]</span> مشخص شود.</p>
+  </div>
+
   <!-- ── New Prompt Form (hidden by default) ── -->
   <div id="new-prompt-form" class="hidden">
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -22,26 +36,19 @@
         <div>
           <label class="block text-[13px] font-medium text-slate-600 mb-1.5">عنوان قالب</label>
           <input type="text" name="title" required
-                 placeholder="مثال: قالب SEO فروشگاه اصلی"
+                 placeholder="مثال: لوازم جانبی کنسول"
                  class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
         </div>
         <div>
-          <label class="block text-[13px] font-medium text-slate-600 mb-1.5">پرامپت توضیحات اصلی</label>
-          <textarea name="main_desc_prompt" rows="5" required
-                    placeholder="دستورالعمل بازنویسی توضیحات اصلی محصول…"
-                    class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition resize-y"></textarea>
-        </div>
-        <div>
-          <label class="block text-[13px] font-medium text-slate-600 mb-1.5">پرامپت توضیحات کوتاه</label>
-          <textarea name="short_desc_prompt" rows="3" required
-                    placeholder="دستورالعمل بازنویسی توضیحات کوتاه…"
-                    class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition resize-y"></textarea>
+          <label class="block text-[13px] font-medium text-slate-600 mb-1.5">پرامپت کامل</label>
+          <textarea name="prompt" rows="16" required
+                    placeholder="کل پرامپت را اینجا بگذارید؛ توضیح کوتاه و محتوای اصلی را جدا نکنید…"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition resize-y font-mono leading-relaxed"></textarea>
         </div>
         <div>
           <label class="block text-[13px] font-medium text-slate-600 mb-1.5">کلمات کلیدی پیش‌فرض (اختیاری)</label>
-          <input type="text" name="target_keywords"
-                 placeholder="مثال: ساعت هوشمند, خرید ساعت"
-                 class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+          {% include "sync_app/partials/keyword_multiselect.html" %}
+          <p class="text-[11px] text-slate-400 mt-1.5">از لیست <a href="{% url 'sync_app:keyword_list' %}" class="text-brand-600 hover:text-brand-800">مدیریت کلمات کلیدی</a> انتخاب کنید.</p>
         </div>
         <div class="flex items-center gap-2">
           <input type="checkbox" name="is_active" id="is_active_new"
@@ -82,6 +89,10 @@
           </button>
         </form>
         {% endif %}
+        <button type="button" onclick="document.getElementById('edit-prompt-{{ prompt.pk }}').classList.toggle('hidden')"
+                class="text-[12px] text-slate-500 hover:text-slate-700 font-medium transition-colors">
+          ویرایش
+        </button>
         <form method="post" action="{% url 'sync_app:prompt_delete' prompt.pk %}"
               onsubmit="return confirm('آیا از حذف این قالب مطمئن هستید؟')">
           {% csrf_token %}
@@ -93,23 +104,40 @@
       </div>
     </div>
 
-
-    {% if prompt.target_keywords %}
+    {% if prompt.keyword_words %}
     <div class="mb-4">
       <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">کلمات کلیدی</p>
-      <div class="bg-slate-50 rounded-lg p-3 text-[13px] text-slate-600 leading-relaxed">{{ prompt.target_keywords }}</div>
+      <div class="flex flex-wrap gap-1.5">
+        {% for word in prompt.keyword_words %}
+        <span class="inline-flex items-center text-[11px] font-medium bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200 px-2 py-0.5 rounded-md">{{ word }}</span>
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <div class="bg-slate-50 rounded-lg p-4 text-[13px] text-slate-600 leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap font-mono">{{ prompt.prompt }}</div>
+
+    <form id="edit-prompt-{{ prompt.pk }}" method="post" action="{% url 'sync_app:prompt_update' prompt.pk %}" class="hidden mt-4 space-y-4">
+      {% csrf_token %}
       <div>
-        <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">پرامپت اصلی</p>
-        <div class="bg-slate-50 rounded-lg p-4 text-[13px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap">{{ prompt.main_desc_prompt }}</div>
+        <label class="block text-[13px] font-medium text-slate-600 mb-1.5">عنوان قالب</label>
+        <input type="text" name="title" value="{{ prompt.title }}" required
+               class="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
       </div>
       <div>
-        <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">پرامپت کوتاه</p>
-        <div class="bg-slate-50 rounded-lg p-4 text-[13px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap">{{ prompt.short_desc_prompt }}</div>
+        <label class="block text-[13px] font-medium text-slate-600 mb-1.5">پرامپت کامل</label>
+        <textarea name="prompt" rows="16" required
+                  class="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition resize-y font-mono leading-relaxed">{{ prompt.prompt }}</textarea>
       </div>
-    </div>
+      <div>
+        <label class="block text-[13px] font-medium text-slate-600 mb-1.5">کلمات کلیدی پیش‌فرض (اختیاری)</label>
+        {% include "sync_app/partials/keyword_multiselect.html" with selected_ids=prompt.selected_keyword_ids %}
+      </div>
+      <button type="submit"
+              class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-5 py-2.5 rounded-lg transition-all active:scale-[0.97]">
+        ذخیره تغییرات
+      </button>
+    </form>
 
     <p class="text-[11px] text-slate-400 mt-3">آخرین ویرایش: {{ prompt.updated_at|timesince }} پیش</p>
   </div>
@@ -124,4 +152,64 @@
   {% endfor %}
 
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function syncKeywordPicker(picker) {
+    const summary = picker.querySelector('[data-picker-summary]');
+    const checked = [...picker.querySelectorAll('input[name="keyword_ids"]:checked')];
+    if (!checked.length) {
+      summary.innerHTML = '<span class="text-slate-400">انتخاب کلمات کلیدی…</span>';
+      summary.classList.add('text-slate-400');
+      return;
+    }
+    summary.classList.remove('text-slate-400');
+    summary.innerHTML = checked.map((input) => {
+      const label = input.closest('[data-picker-option]')?.querySelector('span')?.textContent?.trim() || '';
+      const safe = label.replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[ch]));
+      return `<span class="inline-flex items-center bg-brand-50 text-brand-700 text-[11px] font-medium px-2 py-0.5 rounded-md">${safe}</span>`;
+    }).join('');
+  }
+
+  document.querySelectorAll('[data-keyword-picker]').forEach((picker) => {
+    const toggle = picker.querySelector('[data-picker-toggle]');
+    const panel = picker.querySelector('[data-picker-panel]');
+    const search = picker.querySelector('[data-picker-search]');
+
+    syncKeywordPicker(picker);
+
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      document.querySelectorAll('[data-picker-panel]').forEach((other) => {
+        if (other !== panel) other.classList.add('hidden');
+      });
+      panel.classList.toggle('hidden');
+    });
+
+    picker.querySelectorAll('input[name="keyword_ids"]').forEach((box) => {
+      box.addEventListener('change', () => syncKeywordPicker(picker));
+    });
+
+    if (search) {
+      search.addEventListener('input', () => {
+        const query = search.value.trim().toLowerCase();
+        picker.querySelectorAll('[data-picker-option]').forEach((row) => {
+          const label = row.dataset.label || '';
+          row.hidden = Boolean(query) && !label.includes(query);
+        });
+      });
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll('[data-keyword-picker]').forEach((picker) => {
+      if (!picker.contains(event.target)) {
+        picker.querySelector('[data-picker-panel]')?.classList.add('hidden');
+      }
+    });
+  });
+</script>
 {% endblock %}

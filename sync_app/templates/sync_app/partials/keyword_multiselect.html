@@ -1,0 +1,32 @@
+<div data-keyword-picker class="relative">
+  <button type="button" data-picker-toggle
+          class="w-full min-h-[42px] bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-right flex items-center justify-between gap-2">
+    <span data-picker-summary class="flex flex-wrap gap-1.5 flex-1 text-[13px] text-slate-400">انتخاب کلمات کلیدی…</span>
+    <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+    </svg>
+  </button>
+  <div data-picker-panel class="hidden absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+    <div class="p-2 border-b border-slate-100">
+      <input type="search" data-picker-search placeholder="جستجوی کلمه کلیدی…"
+             class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400">
+    </div>
+    <div class="max-h-56 overflow-y-auto py-1">
+      {% for kw in keywords %}
+      <label data-picker-option data-label="{{ kw.word|lower }}"
+             class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer {% if not kw.is_active %}opacity-60{% endif %}">
+        <input type="checkbox" name="keyword_ids" value="{{ kw.pk }}"
+               {% if selected_ids and kw.pk in selected_ids %}checked{% endif %}
+               class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+        <span class="text-[13px] text-slate-700">{{ kw.word }}</span>
+        <span class="mr-auto text-[11px] text-slate-400">{{ kw.get_priority_display }}</span>
+      </label>
+      {% empty %}
+      <p class="px-3 py-4 text-[13px] text-slate-400 text-center">
+        هنوز کلمه‌ای ثبت نشده.
+        <a href="{% url 'sync_app:keyword_list' %}" class="text-brand-600 hover:text-brand-800">افزودن کلمه کلیدی</a>
+      </p>
+      {% endfor %}
+    </div>
+  </div>
+</div>

@@ -14,8 +14,13 @@ class Command(BaseCommand):
         PromptTemplate.objects.get_or_create(
             title="قالب دمو بازنویسی",
             defaults={
-                "main_desc_prompt": "توضیحات محصول را بازنویسی کن، یکتا و مناسب سئو.",
-                "short_desc_prompt": "توضیح کوتاه را کمی ویرایش کن.",
+                "prompt": (
+                    "برای محصول {product_name} با کلمات کلیدی {seo_keywords} محتوا بساز.\n\n"
+                    "[Short Description]\n"
+                    "یک خط معرفی کوتاه محصول.\n\n"
+                    "[Main Description]\n"
+                    "نقد و بررسی HTML محصول."
+                ),
                 "target_keywords": "گوشی سامسونگ, گلکسی",
                 "is_active": True,
             },

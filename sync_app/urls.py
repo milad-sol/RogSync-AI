@@ -18,6 +18,7 @@ urlpatterns = [
     # Prompt Templates
     path("prompts/", views.prompt_list_view, name="prompt_list"),
     path("prompts/create/", views.prompt_create_view, name="prompt_create"),
+    path("prompts/<int:pk>/update/", views.prompt_update_view, name="prompt_update"),
     path("prompts/<int:pk>/activate/", views.prompt_activate_view, name="prompt_activate"),
     path("prompts/<int:pk>/delete/", views.prompt_delete_view, name="prompt_delete"),
 

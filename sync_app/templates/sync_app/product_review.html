@@ -10,6 +10,8 @@
 <script src="https://cdn.jsdelivr.net/npm/tinymce@7.6.1/tinymce.min.js" referrerpolicy="origin"></script>
 <style>
   .tox-tinymce { border-radius: 12px !important; border-color: #e2e8f0 !important; }
+  html.dark .tox-tinymce { border-color: #334155 !important; }
+  html.dark .kw-legend { color: #94a3b8; }
   details.source-preview > summary {
     cursor: pointer;
     list-style: none;
@@ -324,13 +326,18 @@
     });
   }
 
-  const highlightContentStyle = [
-    "body { font-family: Vazirmatn, Tahoma, sans-serif; font-size: 14px; line-height: 2; }",
-    "mark.kw-product { background: #fde68a; color: inherit; padding: 0 3px; border-radius: 3px; }",
-    "mark.kw-global { background: #ddd6fe; color: inherit; padding: 0 3px; border-radius: 3px; }",
-    "figure.product-inline-image { margin: 1rem 0; }",
-    "figure.product-inline-image img { max-width: 100%; height: auto; border-radius: 8px; }",
-  ].join(' ');
+  function highlightContentStyle() {
+    return [
+      "body { font-family: Vazirmatn, Tahoma, sans-serif; font-size: 14px; line-height: 2; background: #ffffff; color: #334155; }",
+      "body.theme-dark { background: #0f172a; color: #e2e8f0; }",
+      "mark.kw-product { background: #fde68a; color: inherit; padding: 0 3px; border-radius: 3px; }",
+      "mark.kw-global { background: #ddd6fe; color: inherit; padding: 0 3px; border-radius: 3px; }",
+      "body.theme-dark mark.kw-product { background: #854d0e; color: #fef3c7; }",
+      "body.theme-dark mark.kw-global { background: #5b21b6; color: #ede9fe; }",
+      "figure.product-inline-image { margin: 1rem 0; }",
+      "figure.product-inline-image img { max-width: 100%; height: auto; border-radius: 8px; }",
+    ].join(' ');
+  }
 
   const editorShared = {
     license_key: 'gpl',
@@ -341,10 +348,25 @@
     relative_urls: false,
     convert_urls: false,
     entity_encoding: 'raw',
-    content_style: highlightContentStyle,
+    content_style: highlightContentStyle(),
+    body_class: document.documentElement.classList.contains('dark') ? 'theme-dark' : '',
     setup(editor) {
-    editor.on('init', () => highlightKeywords(editor.getBody()));
-    editor.on('SetContent', () => highlightKeywords(editor.getBody()));
+      editor.on('init', () => {
+        highlightKeywords(editor.getBody());
+        const dark = document.documentElement.classList.contains('dark');
+        const body = editor.getBody();
+        const doc = editor.getDoc();
+        if (doc && doc.documentElement) {
+          doc.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+          doc.documentElement.style.background = dark ? '#0f172a' : '#ffffff';
+        }
+        if (body) {
+          body.classList.toggle('theme-dark', dark);
+          body.style.backgroundColor = dark ? '#0f172a' : '#ffffff';
+          body.style.color = dark ? '#e2e8f0' : '#334155';
+        }
+      });
+      editor.on('SetContent', () => highlightKeywords(editor.getBody()));
       let timer;
       editor.on('keyup', () => {
         clearTimeout(timer);

@@ -134,11 +134,43 @@ def product_review_view(request, pk):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Prompt Templates
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _keywords_from_request(request):
+    """Resolve selected GlobalKeyword IDs into a comma-separated word list."""
+    ids = [pk for pk in request.POST.getlist("keyword_ids") if str(pk).isdigit()]
+    if not ids:
+        return ""
+    words = list(
+        GlobalKeyword.objects.filter(pk__in=ids)
+        .order_by("-priority", "word")
+        .values_list("word", flat=True)
+    )
+    return ", ".join(words)
+
+
+def _attach_selected_keyword_ids(prompts, keywords):
+    word_to_id = {item.word: item.pk for item in keywords}
+    for prompt in prompts:
+        selected = []
+        words = []
+        for word in (prompt.target_keywords or "").split(","):
+            word = word.strip()
+            if not word:
+                continue
+            words.append(word)
+            if word in word_to_id:
+                selected.append(word_to_id[word])
+        prompt.selected_keyword_ids = selected
+        prompt.keyword_words = words
+
+
 def prompt_list_view(request):
     """List all prompt templates."""
-    prompts = PromptTemplate.objects.all().order_by("-is_active", "-updated_at")
+    prompts = list(PromptTemplate.objects.all().order_by("-is_active", "-updated_at"))
+    keywords = list(GlobalKeyword.objects.all().order_by("-is_active", "-priority", "word"))
+    _attach_selected_keyword_ids(prompts, keywords)
     return render(request, "sync_app/prompt_list.html", {
         "prompts": prompts,
+        "keywords": keywords,
     })
 
 
@@ -147,11 +179,21 @@ def prompt_create_view(request):
     """Create a new prompt template."""
     PromptTemplate.objects.create(
         title=request.POST.get("title", "").strip(),
-        main_desc_prompt=request.POST.get("main_desc_prompt", "").strip(),
-        short_desc_prompt=request.POST.get("short_desc_prompt", "").strip(),
-        target_keywords=request.POST.get("target_keywords", "").strip(),
+        prompt=request.POST.get("prompt", "").strip(),
+        target_keywords=_keywords_from_request(request),
         is_active=bool(request.POST.get("is_active")),
     )
+    return redirect("sync_app:prompt_list")
+
+
+@require_POST
+def prompt_update_view(request, pk):
+    """Update an existing prompt template."""
+    prompt = get_object_or_404(PromptTemplate, pk=pk)
+    prompt.title = request.POST.get("title", "").strip() or prompt.title
+    prompt.prompt = request.POST.get("prompt", "").strip()
+    prompt.target_keywords = _keywords_from_request(request)
+    prompt.save()
     return redirect("sync_app:prompt_list")
 
 

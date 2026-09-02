@@ -7,7 +7,7 @@ from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate
 class PromptTemplateAdmin(admin.ModelAdmin):
     list_display = ("title", "is_active", "updated_at")
     list_filter = ("is_active",)
-    search_fields = ("title",)
+    search_fields = ("title", "prompt")
 
 
 @admin.register(ProductSync)
