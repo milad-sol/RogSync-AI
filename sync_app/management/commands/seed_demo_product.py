@@ -11,7 +11,7 @@ class Command(BaseCommand):
     help = "Create a demo product with injected keywords and in-post gallery images."
 
     def handle(self, *args, **options):
-        PromptTemplate.objects.get_or_create(
+        prompt, _ = PromptTemplate.objects.get_or_create(
             title="قالب دمو بازنویسی",
             defaults={
                 "prompt": (
@@ -26,10 +26,8 @@ class Command(BaseCommand):
             },
         )
         if not PromptTemplate.objects.filter(is_active=True).exists():
-            prompt = PromptTemplate.objects.first()
-            if prompt:
-                prompt.is_active = True
-                prompt.save(update_fields=["is_active"])
+            prompt.is_active = True
+            prompt.save(update_fields=["is_active"])
 
         GlobalKeyword.objects.get_or_create(
             word="خرید آنلاین",
@@ -73,6 +71,7 @@ class Command(BaseCommand):
                 "images_data": images,
                 "source_categories": [{"id": 15, "name": "موبایل", "slug": "mobile"}],
                 "target_categories": [],
+                "prompt_template": prompt,
                 "status": ProductSync.Status.READY_FOR_REVIEW,
             },
         )

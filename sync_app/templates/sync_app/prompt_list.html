@@ -355,7 +355,7 @@
           </svg>
         </button>
         <form method="post" action="{% url 'sync_app:prompt_delete' prompt.pk %}"
-              onsubmit="return confirm('آیا از حذف این قالب مطمئن هستید؟')">
+              data-swal-confirm="آیا از حذف این قالب مطمئن هستید؟">
           {% csrf_token %}
           <button type="submit" class="prompt-action is-danger" title="حذف" aria-label="حذف">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">

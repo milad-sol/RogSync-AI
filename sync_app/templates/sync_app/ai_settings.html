@@ -6,15 +6,6 @@
 {% block content %}
 <div class="max-w-3xl space-y-6">
 
-  {% if saved %}
-  <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-3 text-[13px] text-emerald-700 font-medium flex items-center gap-2 toast-enter">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-    </svg>
-    تنظیمات با موفقیت ذخیره شد.
-  </div>
-  {% endif %}
-
   <form method="post" class="space-y-6">
     {% csrf_token %}
 

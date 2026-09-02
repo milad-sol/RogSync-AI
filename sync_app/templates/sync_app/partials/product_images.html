@@ -1,7 +1,4 @@
 <div id="product-images" class="space-y-4" data-images-url="{% url 'sync_app:update_images' product.pk %}">
-  {% if message %}
-  <p class="text-[12px] text-emerald-600 font-medium toast-enter">{{ message }}</p>
-  {% endif %}
 
   <!-- ── Featured ────────────────────── -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

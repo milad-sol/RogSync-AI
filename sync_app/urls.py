@@ -35,6 +35,7 @@ urlpatterns = [
     # HTMX action endpoints
     path("products/<int:pk>/approve/", views.approve_product_view, name="approve_product"),
     path("products/<int:pk>/regenerate/", views.regenerate_ai_view, name="regenerate_ai"),
+    path("products/<int:pk>/row/", views.product_row_view, name="product_row"),
     path("products/<int:pk>/update-fields/", views.update_product_fields_view, name="update_fields"),
     path("products/<int:pk>/update-content/", views.update_product_content_view, name="update_content"),
     path("products/<int:pk>/images/", views.update_product_images_view, name="update_images"),

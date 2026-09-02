@@ -134,10 +134,13 @@ def _normalize_source_categories(product_payload):
 def _openrouter_chat(system_prompt: str, user_prompt: str) -> str:
     """Send a chat completion request to the OpenRouter API and return the response text."""
     ai_settings = AiSettings.load()
+    api_key = (ai_settings.openrouter_api_key or "").strip()
+    if not api_key:
+        raise RuntimeError("OpenRouter API key is not configured.")
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
         headers={
-            "Authorization": f"Bearer {ai_settings.openrouter_api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
         json={
@@ -160,18 +163,24 @@ def _openrouter_chat(system_prompt: str, user_prompt: str) -> str:
 #  Task 1: Fetch Products from Source
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 @shared_task(bind=True, max_retries=3, default_retry_delay=30)
-def fetch_products_task(self, category_id: int, limit=None):
+def fetch_products_task(self, category_id: int, limit=None, prompt_id=None):
     """
     Fetch products from the source WooCommerce store by category.
 
     Pass limit=None to pull every published product in the category.
     For variable products, makes a secondary request to get variations.
-    Creates or updates ProductSync records with status=FETCHED.
+    Creates or updates ProductSync records and queues AI rewrite when a prompt is set.
     """
     api = _source_api()
     fetched_ids = []
     unlimited = limit is None or int(limit) <= 0
     max_items = None if unlimited else int(limit)
+    prompt_template = None
+    if prompt_id:
+        prompt_template = PromptTemplate.objects.filter(pk=prompt_id).first()
+        if not prompt_template:
+            logger.error("PromptTemplate %s not found. Fetch aborted.", prompt_id)
+            return []
 
     try:
         page = 1
@@ -222,21 +231,26 @@ def fetch_products_task(self, category_id: int, limit=None):
                             e,
                         )
 
+                defaults = {
+                    "title": product.get("name", ""),
+                    "original_slug": product.get("slug", ""),
+                    "product_type": product.get("type", "simple"),
+                    "original_desc": product.get("description", ""),
+                    "original_short_desc": product.get("short_description", ""),
+                    "source_permalink": product.get("permalink", "") or "",
+                    "attributes": attributes,
+                    "images_data": images_data,
+                    "variations_data": variations_data,
+                    "source_categories": source_categories,
+                    "status": ProductSync.Status.FETCHED,
+                }
+                if prompt_template:
+                    defaults["prompt_template"] = prompt_template
+                    if AiSettings.is_configured():
+                        defaults["status"] = ProductSync.Status.AI_PROCESSING
                 obj, _created = ProductSync.objects.update_or_create(
                     source_id=product["id"],
-                    defaults={
-                        "title": product.get("name", ""),
-                        "original_slug": product.get("slug", ""),
-                        "product_type": product.get("type", "simple"),
-                        "original_desc": product.get("description", ""),
-                        "original_short_desc": product.get("short_description", ""),
-                        "source_permalink": product.get("permalink", "") or "",
-                        "attributes": attributes,
-                        "images_data": images_data,
-                        "variations_data": variations_data,
-                        "source_categories": source_categories,
-                        "status": ProductSync.Status.FETCHED,
-                    },
+                    defaults=defaults,
                 )
                 fetched_ids.append(obj.pk)
                 total_fetched += 1
@@ -253,6 +267,9 @@ def fetch_products_task(self, category_id: int, limit=None):
         raise self.retry(exc=exc)
 
     logger.info("Fetched %d products from category %s", len(fetched_ids), category_id)
+    if prompt_template and AiSettings.is_configured():
+        for product_pk in fetched_ids:
+            process_ai_rewrite_task.delay(product_pk)
     return fetched_ids
 
 
@@ -262,21 +279,30 @@ def fetch_products_task(self, category_id: int, limit=None):
 @shared_task(bind=True, max_retries=2, default_retry_delay=60)
 def process_ai_rewrite_task(self, product_id: int):
     """
-    Use the active PromptTemplate + OpenRouter to:
+    Use the product's assigned PromptTemplate + OpenRouter to:
       1. Resolve SEO keywords.
       2. Generate short + main copy in one prompt.
       3. Generate SEO-optimized alt text for images.
     """
     try:
-        product = ProductSync.objects.get(pk=product_id)
+        product = ProductSync.objects.select_related("prompt_template").get(pk=product_id)
     except ProductSync.DoesNotExist:
         logger.error("ProductSync %s not found", product_id)
         return
 
-    # Get the active prompt template
-    prompt_template = PromptTemplate.objects.filter(is_active=True).first()
+    prompt_template = product.prompt_template
     if not prompt_template:
-        logger.error("No active PromptTemplate found. Aborting AI rewrite.")
+        logger.error("Product %s has no prompt template. Aborting AI rewrite.", product_id)
+        if product.status == ProductSync.Status.AI_PROCESSING:
+            product.status = ProductSync.Status.FETCHED
+            product.save(update_fields=["status"])
+        return
+
+    if not AiSettings.is_configured():
+        logger.error("OpenRouter API key missing. Aborting AI rewrite for %s", product_id)
+        if product.status == ProductSync.Status.AI_PROCESSING:
+            product.status = ProductSync.Status.FETCHED
+            product.save(update_fields=["status"])
         return
 
     product.status = ProductSync.Status.AI_PROCESSING
@@ -369,6 +395,8 @@ def process_ai_rewrite_task(self, product_id: int):
         logger.error("AI rewrite failed for product %s: %s", product_id, exc)
         product.status = ProductSync.Status.FETCHED
         product.save(update_fields=["status"])
+        if "API key is not configured" in str(exc):
+            return
         raise self.retry(exc=exc)
 
 

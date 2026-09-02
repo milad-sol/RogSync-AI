@@ -1,5 +1,7 @@
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 
+from sync_app.models import ProductSync, PromptTemplate
 from sync_app.prompts import fill_placeholders, select_injection_keywords, split_generated_content
 
 
@@ -55,3 +57,45 @@ class PromptHelpersTests(SimpleTestCase):
         self.assertIn("لپ تاپ گیمینگ", selected)
         self.assertNotIn("دسته بازی PS5", selected)
         self.assertNotIn("هدست استریم", selected)
+
+
+class FetchRequiresPromptTests(TestCase):
+    def test_fetch_without_prompt_is_rejected(self):
+        response = self.client.post(
+            reverse("sync_app:fetch_products"),
+            {"category_id": "12", "limit": "5"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("قالب پرامپت", response.content.decode())
+
+
+class GenerateRequiresAiSettingsTests(TestCase):
+    def setUp(self):
+        self.prompt = PromptTemplate.objects.create(title="لپ تاپ", prompt="Write copy.")
+        self.product = ProductSync.objects.create(
+            source_id=101,
+            title="محصول تست",
+            original_slug="test-product",
+        )
+
+    def test_generate_without_api_key_stays_fetched(self):
+        response = self.client.post(
+            reverse("sync_app:regenerate_ai", args=[self.product.pk]),
+            {"from_list": "1", "prompt_template_id": str(self.prompt.pk)},
+        )
+        self.product.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.product.status, ProductSync.Status.FETCHED)
+        self.assertIn("OpenRouter", response["HX-Trigger"])
+
+    def test_fetch_without_api_key_is_rejected(self):
+        response = self.client.post(
+            reverse("sync_app:fetch_products"),
+            {
+                "category_id": "12",
+                "limit": "5",
+                "prompt_template_id": str(self.prompt.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("OpenRouter", response["HX-Trigger"])

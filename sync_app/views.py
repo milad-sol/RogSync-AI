@@ -4,6 +4,7 @@ RogSync AI — Views
 Dashboard, product list/review, prompt templates, API settings,
 and HTMX action endpoints.
 """
+import json
 import uuid
 from pathlib import Path
 
@@ -25,6 +26,26 @@ from .tasks import (
     process_ai_rewrite_task,
     push_to_target_task,
 )
+
+
+def _attach_notify(response, title, icon="success"):
+    """Attach a SweetAlert payload for HTMX via HX-Trigger."""
+    response["HX-Trigger"] = json.dumps(
+        {"notify": {"icon": icon, "title": title}},
+        ensure_ascii=True,
+    )
+    return response
+
+
+def hx_notify(title, icon="success", status=200, html=""):
+    return _attach_notify(HttpResponse(html, status=status), title, icon)
+
+
+AI_KEY_MISSING = (
+    "کلید OpenRouter در تنظیمات هوش مصنوعی وارد نشده است. "
+    "ابتدا کلید API را ذخیره کنید، سپس دوباره تولید محتوا را بزنید."
+)
+
 
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg",
@@ -65,7 +86,14 @@ def product_list_view(request):
     search_query = request.GET.get("q", "")
     source_cat = request.GET.get("source_cat", "")
 
-    products = ProductSync.objects.all()
+    swal_queue = []
+    if not AiSettings.is_configured():
+        stuck = ProductSync.objects.filter(status=ProductSync.Status.AI_PROCESSING)
+        if stuck.exists():
+            stuck.update(status=ProductSync.Status.FETCHED)
+            swal_queue.append({"icon": "error", "title": AI_KEY_MISSING})
+
+    products = ProductSync.objects.select_related("prompt_template").all()
 
     if status_filter:
         products = products.filter(status=status_filter)
@@ -100,6 +128,8 @@ def product_list_view(request):
         "source_cat": source_cat,
         "status_choices": ProductSync.Status.choices,
         "source_category_options": _unique_source_categories(),
+        "prompt_templates": PromptTemplate.objects.order_by("-is_active", "title"),
+        "swal_queue": swal_queue,
     })
 
 
@@ -109,6 +139,14 @@ def product_list_view(request):
 def product_review_view(request, pk):
     """Review and edit product content, featured image, and gallery."""
     product = get_object_or_404(ProductSync, pk=pk)
+    unstuck_ai = False
+    if (
+        product.status == ProductSync.Status.AI_PROCESSING
+        and not AiSettings.is_configured()
+    ):
+        product.status = ProductSync.Status.FETCHED
+        product.save(update_fields=["status"])
+        unstuck_ai = True
     target_category_options = []
     target_categories_error = ""
     try:
@@ -130,6 +168,15 @@ def product_review_view(request, pk):
         "target_categories_error": target_categories_error,
         "selected_target_ids": product.target_category_id_set,
         "highlight_keywords": _highlight_keywords_payload(product),
+        "prompt_templates": PromptTemplate.objects.order_by("-is_active", "title"),
+        "swal_queue": [
+            item for item in [
+                {"icon": "success", "title": "تغییرات متن ذخیره شد."} if request.GET.get("saved") == "1" else None,
+                {"icon": "success", "title": "تأیید شد — در حال ارسال به سایت مقصد…"} if request.GET.get("approved") == "1" else None,
+                {"icon": "error", "title": AI_KEY_MISSING} if unstuck_ai else None,
+                {"icon": "warning", "title": target_categories_error} if target_categories_error else None,
+            ] if item
+        ],
     })
 
 
@@ -166,14 +213,28 @@ def _attach_selected_keyword_ids(prompts, keywords):
         prompt.excerpt = Truncator(strip_tags(prompt.prompt or "")).chars(170)
 
 
+PROMPT_NOTIFY = {
+    "created": "قالب پرامپت ساخته شد.",
+    "updated": "قالب پرامپت ذخیره شد.",
+    "activated": "قالب پرامپت فعال شد.",
+    "deleted": "قالب پرامپت حذف شد.",
+}
+
+
+def _prompt_list_redirect(notify_key):
+    return redirect(f"{reverse('sync_app:prompt_list')}?notify={notify_key}")
+
+
 def prompt_list_view(request):
     """List all prompt templates."""
     prompts = list(PromptTemplate.objects.all().order_by("-is_active", "-updated_at"))
     keywords = list(GlobalKeyword.objects.all().order_by("-is_active", "-priority", "word"))
     _attach_selected_keyword_ids(prompts, keywords)
+    notify_title = PROMPT_NOTIFY.get(request.GET.get("notify", ""))
     return render(request, "sync_app/prompt_list.html", {
         "prompts": prompts,
         "keywords": keywords,
+        "swal_queue": [{"icon": "success", "title": notify_title}] if notify_title else [],
     })
 
 
@@ -186,7 +247,7 @@ def prompt_create_view(request):
         target_keywords=_keywords_from_request(request),
         is_active=bool(request.POST.get("is_active")),
     )
-    return redirect("sync_app:prompt_list")
+    return _prompt_list_redirect("created")
 
 
 @require_POST
@@ -197,7 +258,7 @@ def prompt_update_view(request, pk):
     prompt.prompt = request.POST.get("prompt", "").strip()
     prompt.target_keywords = _keywords_from_request(request)
     prompt.save()
-    return redirect("sync_app:prompt_list")
+    return _prompt_list_redirect("updated")
 
 
 @require_POST
@@ -206,7 +267,7 @@ def prompt_activate_view(request, pk):
     prompt = get_object_or_404(PromptTemplate, pk=pk)
     prompt.is_active = True
     prompt.save()
-    return redirect("sync_app:prompt_list")
+    return _prompt_list_redirect("activated")
 
 
 @require_POST
@@ -214,7 +275,7 @@ def prompt_delete_view(request, pk):
     """Delete a prompt template."""
     prompt = get_object_or_404(PromptTemplate, pk=pk)
     prompt.delete()
-    return redirect("sync_app:prompt_list")
+    return _prompt_list_redirect("deleted")
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -237,7 +298,7 @@ def api_settings_view(request):
 
     return render(request, "sync_app/api_settings.html", {
         "settings": settings_obj,
-        "saved": saved,
+        "swal_queue": [{"icon": "success", "title": "تنظیمات با موفقیت ذخیره شد."}] if saved else [],
     })
 
 
@@ -255,7 +316,7 @@ def ai_settings_view(request):
 
     return render(request, "sync_app/ai_settings.html", {
         "settings": settings_obj,
-        "saved": saved,
+        "swal_queue": [{"icon": "success", "title": "تنظیمات با موفقیت ذخیره شد."}] if saved else [],
     })
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -283,24 +344,36 @@ def keyword_list_view(request):
     })
 
 
+def _keyword_rows_response(request, title="", icon="success"):
+    keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
+    response = render(request, "sync_app/partials/keyword_rows.html", {
+        "keywords": keywords,
+    })
+    if title:
+        _attach_notify(response, title, icon)
+    return response
+
+
 @require_POST
 def keyword_create_view(request):
     """Create a new global keyword."""
     word = request.POST.get("word", "").strip()
     priority = request.POST.get("priority", GlobalKeyword.Priority.MEDIUM)
-    
-    if word:
-        GlobalKeyword.objects.get_or_create(
-            word=word,
-            defaults={"priority": priority, "is_active": True}
-        )
-    
-    # After creation, if it's HTMX, return the updated list or just redirect
+
+    if not word:
+        if request.headers.get("HX-Request"):
+            return hx_notify("لطفاً کلمه کلیدی را وارد کنید.", icon="error", status=400)
+        return redirect("sync_app:keyword_list")
+
+    _, created = GlobalKeyword.objects.get_or_create(
+        word=word,
+        defaults={"priority": priority, "is_active": True},
+    )
+    title = "کلمه کلیدی اضافه شد." if created else "این کلمه کلیدی از قبل وجود دارد."
+    icon = "success" if created else "info"
+
     if request.headers.get("HX-Request"):
-        keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
-        return render(request, "sync_app/partials/keyword_rows.html", {
-            "keywords": keywords,
-        })
+        return _keyword_rows_response(request, title, icon)
     return redirect("sync_app:keyword_list")
 
 
@@ -310,12 +383,10 @@ def keyword_toggle_view(request, pk):
     keyword = get_object_or_404(GlobalKeyword, pk=pk)
     keyword.is_active = not keyword.is_active
     keyword.save()
-    
+
+    title = "کلمه کلیدی فعال شد." if keyword.is_active else "کلمه کلیدی غیرفعال شد."
     if request.headers.get("HX-Request"):
-        keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
-        return render(request, "sync_app/partials/keyword_rows.html", {
-            "keywords": keywords,
-        })
+        return _keyword_rows_response(request, title)
     return redirect("sync_app:keyword_list")
 
 
@@ -324,12 +395,9 @@ def keyword_delete_view(request, pk):
     """Delete a keyword."""
     keyword = get_object_or_404(GlobalKeyword, pk=pk)
     keyword.delete()
-    
+
     if request.headers.get("HX-Request"):
-        keywords = GlobalKeyword.objects.all().order_by("-priority", "-created_at")
-        return render(request, "sync_app/partials/keyword_rows.html", {
-            "keywords": keywords,
-        })
+        return _keyword_rows_response(request, "کلمه کلیدی حذف شد.")
     return redirect("sync_app:keyword_list")
 
 
@@ -348,6 +416,13 @@ def _apply_content_fields(product, post_data):
 
     if "target_keywords" in post_data:
         product.target_keywords = post_data.get("target_keywords", "").strip()
+
+    raw_prompt = post_data.get("prompt_template_id")
+    if raw_prompt:
+        try:
+            product.prompt_template_id = int(raw_prompt)
+        except (TypeError, ValueError):
+            pass
 
     if "generated_desc" in post_data:
         product.generated_desc = strip_keyword_marks(post_data.get("generated_desc", ""))
@@ -420,11 +495,13 @@ def _save_images(product, images):
     product.save(update_fields=["images_data", "updated_at"])
 
 
-def _images_partial(request, product, message=""):
-    return render(request, "sync_app/partials/product_images.html", {
+def _images_partial(request, product, message="", icon="success"):
+    response = render(request, "sync_app/partials/product_images.html", {
         "product": product,
-        "message": message,
     })
+    if message:
+        _attach_notify(response, message, icon)
+    return response
 
 
 def _store_uploaded_image(request, product, uploaded):
@@ -458,27 +535,80 @@ def approve_product_view(request, pk):
     push_to_target_task.delay(product.pk)
 
     if request.headers.get("HX-Request"):
-        return render(request, "sync_app/partials/status_badge.html", {
+        response = render(request, "sync_app/partials/status_badge.html", {
             "product": product,
-            "message": "تأیید شد — در حال ارسال به سایت مقصد…",
         })
+        return _attach_notify(response, "تأیید شد — در حال ارسال به سایت مقصد…")
 
-    return redirect("sync_app:product_review", pk=product.pk)
+    review_url = reverse("sync_app:product_review", args=[product.pk])
+    return redirect(f"{review_url}?approved=1")
+
+
+def _product_row_response(request, product, generate_error=""):
+    response = render(request, "sync_app/partials/product_row.html", {
+        "product": product,
+        "prompt_templates": PromptTemplate.objects.order_by("-is_active", "title"),
+    })
+    if generate_error:
+        _attach_notify(response, generate_error, "error")
+    return response
+
+
+def product_row_view(request, pk):
+    """HTMX: one product list row, used to poll AI rewrite status."""
+    product = get_object_or_404(
+        ProductSync.objects.select_related("prompt_template"),
+        pk=pk,
+    )
+    if (
+        product.status == ProductSync.Status.AI_PROCESSING
+        and not AiSettings.is_configured()
+    ):
+        product.status = ProductSync.Status.FETCHED
+        product.save(update_fields=["status"])
+        return _product_row_response(request, product, generate_error=AI_KEY_MISSING)
+    return _product_row_response(request, product)
 
 
 @require_POST
 def regenerate_ai_view(request, pk):
-    """HTMX: Re-trigger the AI rewrite task."""
-    product = get_object_or_404(ProductSync, pk=pk)
+    """HTMX: Re-trigger the AI rewrite task with the chosen prompt."""
+    product = get_object_or_404(
+        ProductSync.objects.select_related("prompt_template"),
+        pk=pk,
+    )
+    from_list = request.POST.get("from_list") == "1"
+    raw_prompt = request.POST.get("prompt_template_id")
+    if raw_prompt:
+        try:
+            prompt = PromptTemplate.objects.filter(pk=int(raw_prompt)).first()
+        except (TypeError, ValueError):
+            prompt = None
+        if prompt:
+            product.prompt_template = prompt
+    if not product.prompt_template_id:
+        message = "ابتدا قالب پرامپت این محصول را انتخاب کنید."
+        if from_list:
+            return _product_row_response(request, product, generate_error=message)
+        return hx_notify(message, icon="error", status=400, html=message)
+
+    if not AiSettings.is_configured():
+        product.save(update_fields=["prompt_template"])
+        if from_list:
+            return _product_row_response(request, product, generate_error=AI_KEY_MISSING)
+        return hx_notify(AI_KEY_MISSING, icon="error", status=400, html=AI_KEY_MISSING)
+
     product.status = ProductSync.Status.AI_PROCESSING
-    product.save(update_fields=["status"])
+    product.save(update_fields=["prompt_template", "status"])
 
     process_ai_rewrite_task.delay(product.pk)
 
-    return render(request, "sync_app/partials/status_badge.html", {
+    if from_list:
+        return _attach_notify(_product_row_response(request, product), "تولید محتوا شروع شد.")
+    response = render(request, "sync_app/partials/status_badge.html", {
         "product": product,
-        "message": "بازنویسی مجدد با AI شروع شد…",
     })
+    return _attach_notify(response, "بازنویسی مجدد با AI شروع شد.")
 
 
 @require_POST
@@ -487,12 +617,20 @@ def fetch_products_view(request):
     category_id = request.POST.get("category_id", "")
     fetch_all = request.POST.get("fetch_all") == "1"
     limit = request.POST.get("limit", "20")
+    prompt_id = request.POST.get("prompt_template_id", "")
 
     if not category_id:
-        return HttpResponse(
-            '<span class="text-[12px] text-red-600 font-medium">لطفاً یک دسته‌بندی انتخاب کنید.</span>',
-            status=400,
-        )
+        return hx_notify("لطفاً یک دسته‌بندی انتخاب کنید.", icon="error", status=400, html="لطفاً یک دسته‌بندی انتخاب کنید.")
+
+    try:
+        prompt_id = int(prompt_id)
+    except (TypeError, ValueError):
+        return hx_notify("لطفاً قالب پرامپت را انتخاب کنید.", icon="error", status=400, html="قالب پرامپت")
+    if not PromptTemplate.objects.filter(pk=prompt_id).exists():
+        return hx_notify("قالب پرامپت پیدا نشد.", icon="error", status=400, html="قالب پرامپت")
+
+    if not AiSettings.is_configured():
+        return hx_notify(AI_KEY_MISSING, icon="error", status=400, html=AI_KEY_MISSING)
 
     try:
         category_id = int(category_id)
@@ -503,21 +641,16 @@ def fetch_products_view(request):
             if limit_value <= 0:
                 raise ValueError("limit must be positive")
     except ValueError:
-        return HttpResponse(
-            '<span class="text-[12px] text-red-600 font-medium">مقادیر نامعتبر.</span>',
-            status=400,
-        )
+        return hx_notify("مقادیر نامعتبر.", icon="error", status=400, html="مقادیر نامعتبر.")
 
-    fetch_products_task.delay(category_id, limit_value)
+    fetch_products_task.delay(category_id, limit_value, prompt_id)
 
     if fetch_all:
-        message = f"✓ استخراج همه محصولات دسته {category_id} شروع شد"
+        message = f"استخراج همه محصولات دسته {category_id} شروع شد."
     else:
-        message = f"✓ استخراج حداکثر {limit_value} محصول از دسته {category_id} شروع شد"
+        message = f"استخراج حداکثر {limit_value} محصول از دسته {category_id} شروع شد."
 
-    return HttpResponse(
-        f'<span class="text-[12px] text-emerald-600 font-medium">{message}</span>'
-    )
+    return hx_notify(message, icon="success")
 
 
 def extract_products_view(request):
@@ -536,10 +669,16 @@ def extract_products_view(request):
         except Exception:
             error = "ارتباط با فروشگاه منبع برقرار نشد. تنظیمات API منبع را بررسی کنید."
 
+    prompt_templates = list(PromptTemplate.objects.order_by("-is_active", "title"))
+    default_prompt_id = next((item.pk for item in prompt_templates if item.is_active), None)
+
     return render(request, "sync_app/extract_products.html", {
         "categories": categories,
         "error": error,
         "source_url": source_url,
+        "prompt_templates": prompt_templates,
+        "default_prompt_id": default_prompt_id,
+        "swal_queue": [{"icon": "warning", "title": error}] if error else [],
     })
 
 
@@ -558,9 +697,7 @@ def update_product_fields_view(request, pk):
 
     product.save(update_fields=["target_slug", "target_keywords", "updated_at"])
 
-    return HttpResponse(
-        '<span class="text-[12px] text-emerald-600 font-medium toast-enter">ذخیره شد ✓</span>'
-    )
+    return hx_notify("ذخیره شد.", icon="success")
 
 
 @require_POST
@@ -668,10 +805,10 @@ def update_product_images_view(request, pk):
     elif action == "upload":
         uploaded = request.FILES.get("image")
         if not uploaded:
-            return _images_partial(request, product, "فایلی انتخاب نشده است.")
+            return _images_partial(request, product, "فایلی انتخاب نشده است.", icon="error")
         url, error = _store_uploaded_image(request, product, uploaded)
         if error:
-            return _images_partial(request, product, error)
+            return _images_partial(request, product, error, icon="error")
 
         item = {"src": url, "alt": request.POST.get("alt", "").strip()}
         role = request.POST.get("role", "gallery")

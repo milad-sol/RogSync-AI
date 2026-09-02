@@ -298,24 +298,16 @@
     html.dark .desc-preview h2,
     html.dark .desc-preview h3 { color: #f1f5f9; }
 
-    /* ── Toast messages ────────────────── */
-    .toast-enter {
-      animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 3.5s forwards;
-    }
-    @keyframes toast-in {
-      from { transform: translateY(-12px); opacity: 0; }
-      to   { transform: translateY(0); opacity: 1; }
-    }
-    @keyframes toast-out {
-      to { opacity: 0; transform: translateY(-8px); }
-    }
-
     /* ── Pulse dot for processing ──────── */
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
     }
     .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+    .swal2-container { direction: rtl; }
+    .swal2-popup { font-family: Vazirmatn, Tahoma, sans-serif !important; font-size: 14px; }
+    .swal2-title { font-size: 1.05rem !important; }
   </style>
 
   {% block extra_head %}{% endblock %}
@@ -475,8 +467,121 @@
 
   </div>
 
-  <!-- ═══════ Toast Notification Container ═══════ -->
-  <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] space-y-2"></div>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    (function () {
+      function swalTheme() {
+        return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      }
+
+      function swalBase(extra) {
+        const dark = swalTheme() === 'dark';
+        return Object.assign({
+          theme: swalTheme(),
+          background: dark ? '#1e293b' : '#ffffff',
+          color: dark ? '#e2e8f0' : '#1e293b',
+          confirmButtonColor: '#4f46e5',
+          cancelButtonColor: '#64748b',
+          confirmButtonText: 'باشه',
+          cancelButtonText: 'انصراف',
+        }, extra || {});
+      }
+
+      let lastNotifyKey = '';
+      let lastNotifyAt = 0;
+
+      function notifyPayload(detail) {
+        if (!detail) return {};
+        if (detail.title) return detail;
+        if (detail.notify && detail.notify.title) return detail.notify;
+        if (Array.isArray(detail) && detail[0]) return notifyPayload(detail[0]);
+        return detail;
+      }
+
+      window.RogSyncAlert = {
+        notify(data) {
+          const payload = notifyPayload(data);
+          const icon = payload.icon || 'info';
+          const title = payload.title || '';
+          if (!title) return;
+          const key = icon + title;
+          const now = Date.now();
+          if (key === lastNotifyKey && now - lastNotifyAt < 500) return;
+          lastNotifyKey = key;
+          lastNotifyAt = now;
+          if (icon === 'error' || icon === 'warning') {
+            Swal.fire(swalBase({ icon, title }));
+            return;
+          }
+          Swal.fire(swalBase({
+            toast: true,
+            position: 'top',
+            icon,
+            title,
+            timer: 3200,
+            timerProgressBar: true,
+            showConfirmButton: false,
+          }));
+        },
+        confirm(title) {
+          return Swal.fire(swalBase({
+            icon: 'warning',
+            title,
+            showCancelButton: true,
+            confirmButtonText: 'تأیید',
+            reverseButtons: true,
+          })).then((result) => result.isConfirmed);
+        },
+      };
+
+      document.body.addEventListener('notify', (event) => {
+        window.RogSyncAlert.notify(event.detail || {});
+      });
+
+      document.body.addEventListener('htmx:afterRequest', (event) => {
+        if (!event.detail || !event.detail.failed || !event.detail.xhr) return;
+        const raw = event.detail.xhr.getResponseHeader('HX-Trigger');
+        if (!raw) return;
+        try {
+          const payload = JSON.parse(raw);
+          if (payload.notify) window.RogSyncAlert.notify(payload.notify);
+        } catch (err) {}
+      });
+
+      document.body.addEventListener('htmx:confirm', (event) => {
+        const question = event.detail && event.detail.question;
+        if (!question) return;
+        event.preventDefault();
+        window.RogSyncAlert.confirm(question).then((ok) => {
+          if (ok && event.detail.issueRequest) event.detail.issueRequest(true);
+        });
+      });
+
+      document.addEventListener('submit', (event) => {
+        const form = event.target.closest('form[data-swal-confirm]');
+        if (!form || form.dataset.swalConfirmed === '1') return;
+        event.preventDefault();
+        window.RogSyncAlert.confirm(form.getAttribute('data-swal-confirm')).then((ok) => {
+          if (!ok) return;
+          form.dataset.swalConfirmed = '1';
+          form.requestSubmit();
+        });
+      });
+    })();
+  </script>
+  {% if swal_queue %}
+  {{ swal_queue|json_script:"rogsync-swal-queue" }}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const node = document.getElementById('rogsync-swal-queue');
+      if (!node || !window.RogSyncAlert) return;
+      const queue = JSON.parse(node.textContent || '[]');
+      queue.forEach(function (item, index) {
+        setTimeout(function () { window.RogSyncAlert.notify(item); }, index * 350);
+      });
+    });
+  </script>
+  {% endif %}
 
   <script>
     (function () {

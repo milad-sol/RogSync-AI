@@ -139,6 +139,15 @@ class ProductSync(models.Model):
         default="",
         verbose_name="لینک محصول منبع",
     )
+    prompt_template = models.ForeignKey(
+        "PromptTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="products",
+        verbose_name="قالب پرامپت",
+        help_text="قالبی که برای بازنویسی این محصول به هوش مصنوعی ارسال می‌شود",
+    )
 
     # ── Structured data (JSON) ─────────────
     attributes = models.JSONField(
@@ -359,6 +368,11 @@ class AiSettings(models.Model):
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    @classmethod
+    def is_configured(cls):
+        """True when an OpenRouter API key has been saved."""
+        return bool((cls.load().openrouter_api_key or "").strip())
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  GlobalKeyword
