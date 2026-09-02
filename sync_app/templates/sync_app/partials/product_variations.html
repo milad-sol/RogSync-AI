@@ -15,8 +15,6 @@
           <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">تصویر</th>
           <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">ویژگی‌ها</th>
           <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">SKU</th>
-          <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">قیمت</th>
-          <th class="text-right py-3 px-5 font-semibold text-slate-500 text-[12px]">موجودی</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
@@ -42,21 +40,6 @@
           </td>
           <td class="py-3 px-5">
             <span class="font-mono text-[12px] text-slate-500" dir="ltr">{{ row.sku }}</span>
-          </td>
-          <td class="py-3 px-5">
-            {% if row.sale_price %}
-            <div class="flex flex-col">
-              <span class="text-[12px] text-slate-400 line-through" dir="ltr">{{ row.regular_price }}</span>
-              <span class="text-[13px] font-semibold text-slate-800" dir="ltr">{{ row.sale_price }}</span>
-            </div>
-            {% elif row.regular_price %}
-            <span class="text-[13px] font-medium text-slate-700" dir="ltr">{{ row.regular_price }}</span>
-            {% else %}
-            <span class="text-[12px] text-slate-400">—</span>
-            {% endif %}
-          </td>
-          <td class="py-3 px-5">
-            <span class="text-[12px] text-slate-600">{{ row.stock_label }}{% if row.stock_quantity != None %} <span class="text-slate-400">({{ row.stock_quantity }})</span>{% endif %}</span>
           </td>
         </tr>
         {% endfor %}

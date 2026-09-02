@@ -261,11 +261,6 @@ class ProductSync(models.Model):
     @property
     def variation_rows(self):
         """Normalize WooCommerce variation JSON for the review table."""
-        stock_labels = {
-            "instock": "موجود",
-            "outofstock": "ناموجود",
-            "onbackorder": "پیش‌سفارش",
-        }
         rows = []
         for item in self.variations_data or []:
             if not isinstance(item, dict):
@@ -279,13 +274,8 @@ class ProductSync(models.Model):
                 option = (attr.get("option") or "").strip()
                 if name and option:
                     attributes.append({"name": name, "option": option})
-            stock_status = (item.get("stock_status") or "").strip()
             rows.append({
                 "sku": (item.get("sku") or "").strip() or "—",
-                "regular_price": str(item.get("regular_price") or "").strip(),
-                "sale_price": str(item.get("sale_price") or "").strip(),
-                "stock_label": stock_labels.get(stock_status, stock_status or "—"),
-                "stock_quantity": item.get("stock_quantity"),
                 "image_src": (image.get("src") or "").strip(),
                 "attributes": attributes,
             })
