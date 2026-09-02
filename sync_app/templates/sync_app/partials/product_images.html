@@ -1,0 +1,262 @@
+<div id="product-images" class="space-y-4" data-images-url="{% url 'sync_app:update_images' product.pk %}">
+  {% if message %}
+  <p class="text-[12px] text-emerald-600 font-medium toast-enter">{{ message }}</p>
+  {% endif %}
+
+  <!-- ── Featured ────────────────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+        <span class="text-[12px] font-semibold text-slate-600">تصویر شاخص</span>
+      </div>
+      <span class="text-[11px] text-slate-400">اولین تصویر محصول در سایت مقصد</span>
+    </div>
+
+    <div class="p-5">
+      {% if product.images_data %}
+      {% with featured=product.images_data.0 %}
+      <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,280px)_1fr] gap-5 items-start">
+        <div data-featured-drop class="rounded-xl overflow-hidden bg-slate-100 border border-slate-200 aspect-square transition-[transform,box-shadow] duration-150 ease-out">
+          <img src="{{ featured.src }}" alt="{{ featured.alt }}" draggable="false" class="w-full h-full object-cover pointer-events-none">
+        </div>
+
+        <div class="space-y-4">
+          <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                hx-target="#product-images" hx-swap="outerHTML" class="space-y-1.5">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_alt">
+            <input type="hidden" name="index" value="0">
+            <label class="block text-[13px] font-medium text-slate-600">متن جایگزین (Alt)</label>
+            <div class="flex gap-2">
+              <input type="text" name="alt" value="{{ featured.alt }}"
+                     placeholder="توضیح کوتاه تصویر برای سئو"
+                     class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+              <button type="submit"
+                      class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-medium px-4 py-2 rounded-lg border border-slate-200 active:scale-[0.97] transition-transform">
+                ذخیره
+              </button>
+            </div>
+          </form>
+
+          <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                hx-target="#product-images" hx-swap="outerHTML" class="space-y-1.5">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="replace">
+            <input type="hidden" name="index" value="0">
+            <label class="block text-[13px] font-medium text-slate-600">جایگزینی با آدرس تصویر</label>
+            <div class="flex gap-2">
+              <input type="url" name="src" dir="ltr" placeholder="https://..."
+                     class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+              <button type="submit"
+                      class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-medium px-4 py-2 rounded-lg border border-slate-200 active:scale-[0.97] transition-transform">
+                جایگزینی
+              </button>
+            </div>
+          </form>
+
+          <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                hx-encoding="multipart/form-data"
+                hx-target="#product-images" hx-swap="outerHTML"
+                class="space-y-1.5">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload">
+            <input type="hidden" name="role" value="featured">
+            <label class="block text-[13px] font-medium text-slate-600">آپلود تصویر جدید</label>
+            <div class="flex flex-wrap gap-2">
+              <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif"
+                     class="flex-1 min-w-[180px] text-[12px] text-slate-500 file:ml-3 file:bg-brand-50 file:text-brand-700 file:border-0 file:rounded-lg file:px-3 file:py-2 file:text-[12px] file:font-medium file:cursor-pointer">
+              <button type="submit"
+                      class="bg-brand-50 hover:bg-brand-100 text-brand-700 text-[13px] font-medium px-4 py-2 rounded-lg border border-brand-200 active:scale-[0.97] transition-transform">
+                آپلود به‌عنوان شاخص
+              </button>
+            </div>
+          </form>
+
+          <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                hx-target="#product-images" hx-swap="outerHTML"
+                hx-confirm="تصویر شاخص حذف شود؟">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="remove">
+            <input type="hidden" name="index" value="0">
+            <button type="submit"
+                    class="text-[12px] text-red-600 hover:text-red-700 font-medium active:scale-[0.97] transition-transform">
+              حذف تصویر شاخص
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endwith %}
+      {% else %}
+      <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-8 text-center space-y-4">
+        <p class="text-[13px] text-slate-500">هنوز تصویری ثبت نشده است.</p>
+        <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+              hx-encoding="multipart/form-data"
+              hx-target="#product-images" hx-swap="outerHTML"
+              class="flex flex-wrap items-center justify-center gap-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload">
+          <input type="hidden" name="role" value="featured">
+          <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif"
+                 class="text-[12px] text-slate-500 file:ml-3 file:bg-brand-50 file:text-brand-700 file:border-0 file:rounded-lg file:px-3 file:py-2 file:text-[12px] file:font-medium">
+          <button type="submit"
+                  class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-4 py-2 rounded-lg active:scale-[0.97] transition-transform">
+            آپلود تصویر شاخص
+          </button>
+        </form>
+        <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+              hx-target="#product-images" hx-swap="outerHTML"
+              class="flex flex-wrap items-center justify-center gap-2 max-w-xl mx-auto">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add">
+          <input type="url" name="src" dir="ltr" placeholder="https://example.com/image.jpg"
+                 class="flex-1 min-w-[220px] bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+          <button type="submit"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-medium px-4 py-2 rounded-lg border border-slate-200 active:scale-[0.97] transition-transform">
+            افزودن با لینک
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Gallery ─────────────────────── -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-sky-500"></span>
+        <span class="text-[12px] font-semibold text-slate-600">گالری تصاویر</span>
+      </div>
+      <span class="text-[11px] text-slate-400">تصویر را بکشید تا ترتیب عوض شود</span>
+    </div>
+
+    <div class="p-5 space-y-5">
+      {% if product.images_data|length > 1 %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {% for img in product.images_data %}
+        {% if not forloop.first %}
+        <div class="gallery-card rounded-xl border border-slate-200 overflow-hidden bg-white transition-[transform,box-shadow,opacity] duration-150 ease-out"
+             data-gallery-index="{{ forloop.counter0 }}">
+          <div class="gallery-handle aspect-square bg-slate-100 relative">
+            <img src="{{ img.src }}" alt="{{ img.alt }}" draggable="false" class="w-full h-full object-cover pointer-events-none">
+            <span class="absolute top-2 right-2 bg-white/90 text-[10px] font-medium text-slate-500 px-2 py-0.5 rounded-md">{{ forloop.counter0 }}</span>
+            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent p-2 pointer-events-none">
+              <p class="text-[10px] text-white text-center font-medium">برای جابه‌جایی بکشید</p>
+            </div>
+          </div>
+          <div class="p-3 space-y-3">
+            <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                  hx-trigger="change"
+                  hx-target="#product-images" hx-swap="outerHTML">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="update_alt">
+              <input type="hidden" name="index" value="{{ forloop.counter0 }}">
+              <input type="text" name="alt" value="{{ img.alt }}" placeholder="متن جایگزین"
+                     class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+            </form>
+
+            <div class="flex flex-wrap gap-1.5">
+              <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                    hx-target="#product-images" hx-swap="outerHTML">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="set_featured">
+                <input type="hidden" name="index" value="{{ forloop.counter0 }}">
+                <button type="submit"
+                        class="bg-brand-50 hover:bg-brand-100 text-brand-700 text-[11px] font-medium px-2.5 py-1.5 rounded-md border border-brand-200 active:scale-[0.97] transition-transform">
+                  تصویر شاخص
+                </button>
+              </form>
+              <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                    hx-target="#product-images" hx-swap="outerHTML">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="move">
+                <input type="hidden" name="direction" value="up">
+                <input type="hidden" name="index" value="{{ forloop.counter0 }}">
+                <button type="submit"
+                        class="bg-slate-50 hover:bg-slate-100 text-slate-600 text-[11px] font-medium px-2.5 py-1.5 rounded-md border border-slate-200 active:scale-[0.97] transition-transform">
+                  جلو
+                </button>
+              </form>
+              <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                    hx-target="#product-images" hx-swap="outerHTML">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="move">
+                <input type="hidden" name="direction" value="down">
+                <input type="hidden" name="index" value="{{ forloop.counter0 }}">
+                <button type="submit"
+                        class="bg-slate-50 hover:bg-slate-100 text-slate-600 text-[11px] font-medium px-2.5 py-1.5 rounded-md border border-slate-200 active:scale-[0.97] transition-transform">
+                  عقب
+                </button>
+              </form>
+              <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                    hx-target="#product-images" hx-swap="outerHTML"
+                    hx-confirm="این تصویر از گالری حذف شود؟">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="remove">
+                <input type="hidden" name="index" value="{{ forloop.counter0 }}">
+                <button type="submit"
+                        class="bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-medium px-2.5 py-1.5 rounded-md border border-red-200 active:scale-[0.97] transition-transform">
+                  حذف
+                </button>
+              </form>
+            </div>
+
+            <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+                  hx-target="#product-images" hx-swap="outerHTML" class="flex gap-1.5">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="replace">
+              <input type="hidden" name="index" value="{{ forloop.counter0 }}">
+              <input type="url" name="src" dir="ltr" placeholder="https:// لینک جدید"
+                     class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+              <button type="submit"
+                      class="text-[11px] font-medium text-slate-500 hover:text-slate-700 px-2">
+                عوض کن
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-[13px] text-slate-400">تصویر دیگری در گالری نیست.</p>
+      {% endif %}
+
+      <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4 space-y-3">
+        <p class="text-[12px] font-medium text-slate-600">افزودن تصویر به گالری</p>
+        <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+              hx-target="#product-images" hx-swap="outerHTML"
+              class="flex flex-wrap gap-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add">
+          <input type="url" name="src" dir="ltr" placeholder="https://example.com/image.jpg"
+                 class="flex-1 min-w-[200px] bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+          <input type="text" name="alt" placeholder="متن جایگزین (اختیاری)"
+                 class="w-44 bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+          <button type="submit"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-medium px-4 py-2 rounded-lg border border-slate-200 active:scale-[0.97] transition-transform">
+            افزودن لینک
+          </button>
+        </form>
+        <form hx-post="{% url 'sync_app:update_images' product.pk %}"
+              hx-encoding="multipart/form-data"
+              hx-target="#product-images" hx-swap="outerHTML"
+              class="flex flex-wrap gap-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload">
+          <input type="hidden" name="role" value="gallery">
+          <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif"
+                 class="flex-1 min-w-[180px] text-[12px] text-slate-500 file:ml-3 file:bg-white file:text-slate-700 file:border file:border-slate-200 file:rounded-lg file:px-3 file:py-2 file:text-[12px] file:font-medium">
+          <input type="text" name="alt" placeholder="متن جایگزین (اختیاری)"
+                 class="w-44 bg-white border border-slate-200 rounded-lg px-3 py-2 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+          <button type="submit"
+                  class="bg-brand-50 hover:bg-brand-100 text-brand-700 text-[13px] font-medium px-4 py-2 rounded-lg border border-brand-200 active:scale-[0.97] transition-transform">
+            آپلود در گالری
+          </button>
+        </form>
+        <p class="text-[11px] text-slate-400">حداکثر ۸ مگابایت — JPG، PNG، WebP یا GIF</p>
+      </div>
+    </div>
+  </div>
+</div>

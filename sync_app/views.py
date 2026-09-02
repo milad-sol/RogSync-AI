@@ -4,13 +4,29 @@ RogSync AI — Views
 Dashboard, product list/review, prompt templates, API settings,
 and HTMX action endpoints.
 """
+import uuid
+from pathlib import Path
+
+from django.conf import settings
+from django.core.files.storage import default_storage
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate, GlobalKeyword
 from .tasks import fetch_products_task, process_ai_rewrite_task, push_to_target_task
+
+ALLOWED_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -63,10 +79,18 @@ def product_list_view(request):
 #  Product Review (Detail)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def product_review_view(request, pk):
-    """Side-by-side review of original vs. generated content."""
+    """Review and edit product content, featured image, and gallery."""
     product = get_object_or_404(ProductSync, pk=pk)
     return render(request, "sync_app/product_review.html", {
         "product": product,
+        "saved": request.GET.get("saved") == "1",
+        "editable_desc": product.generated_desc or product.original_desc,
+        "editable_short": product.generated_short_desc or product.original_short_desc,
+        "can_approve": product.status in {
+            ProductSync.Status.FETCHED,
+            ProductSync.Status.READY_FOR_REVIEW,
+            ProductSync.Status.APPROVED,
+        },
     })
 
 
@@ -228,29 +252,88 @@ def keyword_delete_view(request, pk):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Product review helpers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _apply_content_fields(product, post_data):
+    """Apply editable text fields from a POST payload onto the product."""
+    title = post_data.get("title", "").strip()
+    if title:
+        product.title = title
+
+    new_slug = post_data.get("target_slug", "").strip()
+    if new_slug:
+        product.target_slug = new_slug
+
+    if "target_keywords" in post_data:
+        product.target_keywords = post_data.get("target_keywords", "").strip()
+
+    if "generated_desc" in post_data:
+        product.generated_desc = post_data.get("generated_desc", "")
+    if "generated_short_desc" in post_data:
+        product.generated_short_desc = post_data.get("generated_short_desc", "")
+
+
+def _normalized_images(product):
+    images = []
+    for item in product.images_data or []:
+        if not isinstance(item, dict):
+            continue
+        src = (item.get("src") or "").strip()
+        if not src:
+            continue
+        images.append({"src": src, "alt": (item.get("alt") or "").strip()})
+    return images
+
+
+def _save_images(product, images):
+    product.images_data = images
+    product.save(update_fields=["images_data", "updated_at"])
+
+
+def _images_partial(request, product, message=""):
+    return render(request, "sync_app/partials/product_images.html", {
+        "product": product,
+        "message": message,
+    })
+
+
+def _store_uploaded_image(request, product, uploaded):
+    content_type = (uploaded.content_type or "").lower()
+    ext = Path(uploaded.name).suffix.lower()
+    if ext not in ALLOWED_IMAGE_EXTS:
+        return None, "فرمت تصویر مجاز نیست. از JPG، PNG، WebP یا GIF استفاده کنید."
+    if content_type and content_type not in ALLOWED_IMAGE_TYPES:
+        return None, "فرمت تصویر مجاز نیست. از JPG، PNG، WebP یا GIF استفاده کنید."
+    if uploaded.size > MAX_UPLOAD_BYTES:
+        return None, "حجم تصویر بیش از ۸ مگابایت است."
+
+    filename = f"products/{product.pk}/{uuid.uuid4().hex}{ext}"
+    saved = default_storage.save(filename, uploaded)
+    url = request.build_absolute_uri(f"{settings.MEDIA_URL}{saved}")
+    return url, None
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  HTMX Action Endpoints
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 @require_POST
 def approve_product_view(request, pk):
-    """HTMX: Approve a product and trigger the push task."""
+    """Approve a product, persist any in-form edits, then push to target."""
     product = get_object_or_404(ProductSync, pk=pk)
-
-    new_slug = request.POST.get("target_slug", "").strip()
-    new_keywords = request.POST.get("target_keywords", "").strip()
-    if new_slug:
-        product.target_slug = new_slug
-    if new_keywords:
-        product.target_keywords = new_keywords
+    _apply_content_fields(product, request.POST)
 
     product.status = ProductSync.Status.APPROVED
     product.save()
 
     push_to_target_task.delay(product.pk)
 
-    return render(request, "sync_app/partials/status_badge.html", {
-        "product": product,
-        "message": "تأیید شد — در حال ارسال به سایت مقصد…",
-    })
+    if request.headers.get("HX-Request"):
+        return render(request, "sync_app/partials/status_badge.html", {
+            "product": product,
+            "message": "تأیید شد — در حال ارسال به سایت مقصد…",
+        })
+
+    return redirect("sync_app:product_review", pk=product.pk)
 
 
 @require_POST
@@ -316,3 +399,130 @@ def update_product_fields_view(request, pk):
     return HttpResponse(
         '<span class="text-[12px] text-emerald-600 font-medium toast-enter">ذخیره شد ✓</span>'
     )
+
+
+@require_POST
+def update_product_content_view(request, pk):
+    """Save title, slug, keywords, and edited descriptions."""
+    product = get_object_or_404(ProductSync, pk=pk)
+    _apply_content_fields(product, request.POST)
+    product.save()
+
+    review_url = reverse("sync_app:product_review", args=[product.pk])
+    return redirect(f"{review_url}?saved=1")
+
+
+@require_POST
+def update_product_images_view(request, pk):
+    """HTMX: mutate featured image and gallery (add, replace, remove, reorder, alt)."""
+    product = get_object_or_404(ProductSync, pk=pk)
+    action = request.POST.get("action", "").strip()
+    images = _normalized_images(product)
+
+    def _index():
+        try:
+            idx = int(request.POST.get("index", -1))
+        except (TypeError, ValueError):
+            return -1
+        if 0 <= idx < len(images):
+            return idx
+        return -1
+
+    if action == "set_featured":
+        idx = _index()
+        if idx > 0:
+            images.insert(0, images.pop(idx))
+            _save_images(product, images)
+            return _images_partial(request, product, "تصویر شاخص به‌روز شد.")
+
+    elif action == "remove":
+        idx = _index()
+        if idx >= 0:
+            images.pop(idx)
+            _save_images(product, images)
+            return _images_partial(request, product, "تصویر حذف شد.")
+
+    elif action == "update_alt":
+        idx = _index()
+        if idx >= 0:
+            images[idx]["alt"] = request.POST.get("alt", "").strip()
+            _save_images(product, images)
+            return _images_partial(request, product, "متن جایگزین ذخیره شد.")
+
+    elif action == "replace":
+        idx = _index()
+        src = request.POST.get("src", "").strip()
+        if idx >= 0 and src:
+            images[idx]["src"] = src
+            alt = request.POST.get("alt", "").strip()
+            if alt:
+                images[idx]["alt"] = alt
+            _save_images(product, images)
+            return _images_partial(request, product, "تصویر جایگزین شد.")
+
+    elif action == "add":
+        src = request.POST.get("src", "").strip()
+        alt = request.POST.get("alt", "").strip()
+        if src:
+            images.append({"src": src, "alt": alt})
+            _save_images(product, images)
+            return _images_partial(request, product, "تصویر به گالری اضافه شد.")
+
+    elif action == "move":
+        idx = _index()
+        direction = request.POST.get("direction", "")
+        if idx >= 0:
+            if direction == "up" and idx > 0:
+                images[idx - 1], images[idx] = images[idx], images[idx - 1]
+                _save_images(product, images)
+                return _images_partial(request, product, "ترتیب تصاویر به‌روز شد.")
+            if direction == "down" and idx < len(images) - 1:
+                images[idx + 1], images[idx] = images[idx], images[idx + 1]
+                _save_images(product, images)
+                return _images_partial(request, product, "ترتیب تصاویر به‌روز شد.")
+
+    elif action == "reorder":
+        try:
+            from_idx = int(request.POST.get("from_index", -1))
+            to_idx = int(request.POST.get("to_index", -1))
+        except (TypeError, ValueError):
+            from_idx, to_idx = -1, -1
+        count = len(images)
+        if from_idx >= 1 and from_idx < count and 0 <= to_idx < count and from_idx != to_idx:
+            order = list(range(count))
+            from_pos = from_idx
+            to_pos = to_idx
+            order.pop(from_pos)
+            insert_at = order.index(to_idx)
+            if from_pos < to_pos:
+                insert_at += 1
+            order.insert(insert_at, from_idx)
+            images = [images[i] for i in order]
+            _save_images(product, images)
+            if to_idx == 0:
+                return _images_partial(request, product, "تصویر شاخص به‌روز شد.")
+            return _images_partial(request, product, "ترتیب گالری به‌روز شد.")
+
+    elif action == "upload":
+        uploaded = request.FILES.get("image")
+        if not uploaded:
+            return _images_partial(request, product, "فایلی انتخاب نشده است.")
+        url, error = _store_uploaded_image(request, product, uploaded)
+        if error:
+            return _images_partial(request, product, error)
+
+        item = {"src": url, "alt": request.POST.get("alt", "").strip()}
+        role = request.POST.get("role", "gallery")
+        if role == "featured":
+            if images:
+                images[0] = item
+            else:
+                images.append(item)
+            _save_images(product, images)
+            return _images_partial(request, product, "تصویر شاخص به‌روز شد.")
+
+        images.append(item)
+        _save_images(product, images)
+        return _images_partial(request, product, "تصویر به گالری اضافه شد.")
+
+    return _images_partial(request, product)

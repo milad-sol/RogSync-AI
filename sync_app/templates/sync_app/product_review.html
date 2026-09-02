@@ -6,36 +6,88 @@
 <span class="text-[12px] text-slate-400 mr-2">← <a href="{% url 'sync_app:product_list' %}" class="hover:text-brand-600 transition-colors">بازگشت به لیست</a></span>
 {% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7.6.1/tinymce.min.js" referrerpolicy="origin"></script>
+<style>
+  .tox-tinymce { border-radius: 12px !important; border-color: #e2e8f0 !important; }
+  details.source-preview > summary {
+    cursor: pointer;
+    list-style: none;
+  }
+  details.source-preview > summary::-webkit-details-marker { display: none; }
+
+  .gallery-handle {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .gallery-handle:active { cursor: grabbing; }
+  .gallery-card.is-dragging { opacity: 0.4; }
+  .gallery-card.is-drop-target,
+  [data-featured-drop].is-drop-target {
+    box-shadow: 0 0 0 2px #6366f1;
+    transform: scale(0.98);
+  }
+  .gallery-drag-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 9999;
+    pointer-events: none;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgb(15 23 42 / 0.25);
+    opacity: 0.95;
+    will-change: transform;
+  }
+  .gallery-drag-ghost img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-5">
 
-  <!-- ── Header Card ─────────────────── -->
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    <div class="flex items-start justify-between gap-4">
-      <div class="space-y-2">
-        <h2 class="text-lg font-bold text-slate-800">{{ product.title }}</h2>
-        <div class="flex items-center gap-2 text-[12px]">
-          <span class="font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">ID: {{ product.source_id }}</span>
-          {% if product.product_type == 'variable' %}
-          <span class="bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 px-2 py-0.5 rounded-md font-medium">متغیر — {{ product.variations_data|length }} تنوع</span>
-          {% else %}
-          <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">ساده</span>
-          {% endif %}
+  {% if saved %}
+  <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-3 text-[13px] text-emerald-700 font-medium flex items-center gap-2 toast-enter">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+    تغییرات متن ذخیره شد.
+  </div>
+  {% endif %}
+
+  <form id="review-form" method="post" action="{% url 'sync_app:update_content' product.pk %}" class="space-y-5">
+    {% csrf_token %}
+
+    <!-- ── Header Card ─────────────────── -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex-1 space-y-3 min-w-0">
+          <label class="block text-[13px] font-medium text-slate-600">عنوان محصول</label>
+          <input type="text" name="title" value="{{ product.title }}"
+                 class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[15px] font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+          <div class="flex items-center gap-2 text-[12px]">
+            <span class="font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">ID: {{ product.source_id }}</span>
+            {% if product.product_type == 'variable' %}
+            <span class="bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 px-2 py-0.5 rounded-md font-medium">متغیر — {{ product.variations_data|length }} تنوع</span>
+            {% else %}
+            <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">ساده</span>
+            {% endif %}
+          </div>
+        </div>
+        <div id="status-zone">
+          {% include "sync_app/partials/status_badge.html" %}
         </div>
       </div>
-      <div id="status-zone">
-        {% include "sync_app/partials/status_badge.html" %}
-      </div>
     </div>
-  </div>
 
-  <!-- ── Editable Fields ─────────────── -->
-  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    <form hx-post="{% url 'sync_app:update_fields' product.pk %}"
-          hx-target="#save-feedback"
-          hx-swap="innerHTML"
-          class="space-y-4">
-      {% csrf_token %}
+    <!-- ── Slug & Keywords ─────────────── -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <label class="block text-[13px] font-medium text-slate-600 mb-1.5">اسلاگ مقصد</label>
@@ -48,90 +100,67 @@
                  class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
         </div>
       </div>
-      <div class="flex items-center gap-3">
+    </div>
+
+    <!-- ── Short description editor ────── -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-5 py-3 bg-brand-50/50 border-b border-brand-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+          <span class="text-[12px] font-semibold text-brand-700">توضیحات کوتاه — قابل ویرایش</span>
+        </div>
+      </div>
+      <div class="p-5">
+        <textarea id="id_generated_short_desc" name="generated_short_desc">{{ editable_short }}</textarea>
+        {% if product.original_short_desc %}
+        <details class="source-preview mt-4 rounded-lg border border-slate-200 bg-slate-50/70">
+          <summary class="px-4 py-2.5 text-[12px] font-medium text-slate-500 hover:text-slate-700">مشاهده متن کوتاه اصلی منبع</summary>
+          <div class="px-4 pb-4 desc-preview text-[13px] text-slate-600 border-t border-slate-200">{{ product.original_short_desc|safe }}</div>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Main description editor ─────── -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-5 py-3 bg-brand-50/50 border-b border-brand-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+          <span class="text-[12px] font-semibold text-brand-700">توضیحات اصلی — قابل ویرایش</span>
+        </div>
+        <span class="text-[11px] text-slate-400">غلط املایی و متن را همین‌جا اصلاح کنید</span>
+      </div>
+      <div class="p-5">
+        <textarea id="id_generated_desc" name="generated_desc">{{ editable_desc }}</textarea>
+        {% if product.original_desc %}
+        <details class="source-preview mt-4 rounded-lg border border-slate-200 bg-slate-50/70">
+          <summary class="px-4 py-2.5 text-[12px] font-medium text-slate-500 hover:text-slate-700">مشاهده متن اصلی منبع</summary>
+          <div class="px-4 pb-4 desc-preview text-[13px] text-slate-600 border-t border-slate-200">{{ product.original_desc|safe }}</div>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Actions ─────────────────────── -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div class="flex flex-wrap items-center gap-3">
         <button type="submit"
-                class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-medium px-4 py-2 rounded-lg transition-colors border border-slate-200 active:scale-[0.97]">
-          ذخیره تغییرات
+                class="bg-slate-800 hover:bg-slate-900 text-white text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-all hover:shadow-md active:scale-[0.97] flex items-center gap-2">
+          ذخیره متن
         </button>
-        <div id="save-feedback"></div>
-      </div>
-    </form>
-  </div>
-
-  <!-- ── Side-by-Side: Main Description ─ -->
-  <div>
-    <h3 class="text-[13px] font-semibold text-slate-500 mb-3 flex items-center gap-2">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-      </svg>
-      مقایسه توضیحات اصلی
-    </h3>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <!-- Original -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-sky-500"></span>
-          <span class="text-[12px] font-semibold text-slate-500">متن اصلی</span>
-        </div>
-        <div class="p-5 desc-preview text-[13px] text-slate-600">
-          {% if product.original_desc %}
-            {{ product.original_desc|safe }}
-          {% else %}
-            <p class="text-slate-400 italic">توضیحاتی موجود نیست.</p>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- Generated -->
-      <div class="bg-white rounded-xl shadow-sm border border-brand-100 overflow-hidden">
-        <div class="px-5 py-3 bg-brand-50/50 border-b border-brand-100 flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-          <span class="text-[12px] font-semibold text-brand-600">متن بازنویسی شده (AI)</span>
-        </div>
-        <div class="p-5 desc-preview text-[13px] text-slate-600">
-          {% if product.generated_desc %}
-            {{ product.generated_desc|safe }}
-          {% else %}
-            <p class="text-slate-400 italic">هنوز بازنویسی نشده است.</p>
-          {% endif %}
-        </div>
+        <button type="submit" formaction="{% url 'sync_app:approve_product' product.pk %}"
+                {% if not can_approve %}disabled{% endif %}
+                class="bg-brand-600 hover:bg-brand-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-all hover:shadow-md hover:shadow-brand-500/20 active:scale-[0.97] flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          ذخیره، تأیید و ارسال
+        </button>
       </div>
     </div>
-  </div>
-
-  <!-- ── Side-by-Side: Short Description ─ -->
-  {% if product.original_short_desc or product.generated_short_desc %}
-  <div>
-    <h3 class="text-[13px] font-semibold text-slate-500 mb-3 flex items-center gap-2">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/>
-      </svg>
-      مقایسه توضیحات کوتاه
-    </h3>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-5 py-3 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-sky-500"></span>
-          <span class="text-[12px] font-semibold text-slate-500">اصلی</span>
-        </div>
-        <div class="p-5 desc-preview text-[13px] text-slate-600">{{ product.original_short_desc|safe }}</div>
-      </div>
-      <div class="bg-white rounded-xl shadow-sm border border-brand-100 overflow-hidden">
-        <div class="px-5 py-3 bg-brand-50/50 border-b border-brand-100 flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-          <span class="text-[12px] font-semibold text-brand-600">بازنویسی شده</span>
-        </div>
-        <div class="p-5 desc-preview text-[13px] text-slate-600">
-          {% if product.generated_short_desc %}{{ product.generated_short_desc|safe }}{% else %}<p class="text-slate-400 italic">—</p>{% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
+  </form>
 
   <!-- ── Images ──────────────────────── -->
-  {% if product.images_data %}
   <div>
     <h3 class="text-[13px] font-semibold text-slate-500 mb-3 flex items-center gap-2">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
@@ -139,55 +168,168 @@
       </svg>
       تصاویر محصول
     </h3>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {% for img in product.images_data %}
-        <div class="group relative rounded-lg overflow-hidden bg-slate-100 aspect-square border border-slate-200">
-          <img src="{{ img.src }}" alt="{{ img.alt }}" loading="lazy"
-               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-          <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <p class="text-[10px] text-white leading-tight">{{ img.alt }}</p>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
+    {% include "sync_app/partials/product_images.html" %}
   </div>
-  {% endif %}
 
-  <!-- ── Action Buttons ──────────────── -->
+  <!-- ── Regenerate ──────────────────── -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    <div class="flex flex-wrap items-center gap-3">
-      <!-- Approve & Push -->
-      <form hx-post="{% url 'sync_app:approve_product' product.pk %}"
-            hx-target="#status-zone" hx-swap="innerHTML">
-        {% csrf_token %}
-        <input type="hidden" name="target_slug" value="{{ product.target_slug }}">
-        <input type="hidden" name="target_keywords" value="{{ product.target_keywords }}">
-        <button type="submit"
-                {% if product.status != 'ready_for_review' %}disabled{% endif %}
-                class="bg-brand-600 hover:bg-brand-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold px-5 py-2.5 rounded-lg transition-all hover:shadow-md hover:shadow-brand-500/20 active:scale-[0.97] flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-          </svg>
-          تأیید و ارسال
-        </button>
-      </form>
-
-      <!-- Regenerate -->
-      <form hx-post="{% url 'sync_app:regenerate_ai' product.pk %}"
-            hx-target="#status-zone" hx-swap="innerHTML">
-        {% csrf_token %}
-        <button type="submit"
-                class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-[13px] font-medium px-5 py-2.5 rounded-lg transition-colors border border-amber-200 active:scale-[0.97] flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          بازنویسی مجدد AI
-        </button>
-      </form>
-    </div>
+    <form hx-post="{% url 'sync_app:regenerate_ai' product.pk %}"
+          hx-target="#status-zone" hx-swap="innerHTML">
+      {% csrf_token %}
+      <button type="submit"
+              class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-[13px] font-medium px-5 py-2.5 rounded-lg transition-colors border border-amber-200 active:scale-[0.97] flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        بازنویسی مجدد AI
+      </button>
+      <p class="text-[11px] text-slate-400 mt-2">بازنویسی مجدد، متن ویرایش‌شده را با نسخه جدید AI جایگزین می‌کند.</p>
+    </form>
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const editorShared = {
+    license_key: 'gpl',
+    directionality: 'rtl',
+    menubar: false,
+    branding: false,
+    promotion: false,
+    relative_urls: false,
+    convert_urls: false,
+    entity_encoding: 'raw',
+    content_style: "body { font-family: Vazirmatn, Tahoma, sans-serif; font-size: 14px; line-height: 2; }",
+  };
+
+  tinymce.init({
+    ...editorShared,
+    selector: '#id_generated_short_desc',
+    plugins: 'lists link autoresize',
+    toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat',
+    min_height: 180,
+  });
+
+  tinymce.init({
+    ...editorShared,
+    selector: '#id_generated_desc',
+    plugins: 'lists link table code autoresize',
+    toolbar: 'undo redo | blocks | bold italic underline | alignright aligncenter alignleft | bullist numlist | link table | removeformat | code',
+    min_height: 420,
+  });
+
+  document.getElementById('review-form').addEventListener('submit', function () {
+    if (window.tinymce) tinymce.triggerSave();
+  });
+
+  (function initGalleryDrag() {
+    let drag = null;
+
+    function csrfToken() {
+      return document.querySelector('#product-images input[name=csrfmiddlewaretoken]')?.value || '';
+    }
+
+    function targetFromPoint(x, y) {
+      const stack = document.elementsFromPoint(x, y);
+      for (const el of stack) {
+        if (el.classList?.contains('gallery-drag-ghost')) continue;
+        const card = el.closest?.('.gallery-card');
+        if (card) return card;
+        const featured = el.closest?.('[data-featured-drop]');
+        if (featured) return featured;
+      }
+      return null;
+    }
+
+    function clearDropTargets() {
+      document.querySelectorAll('.is-drop-target').forEach((el) => el.classList.remove('is-drop-target'));
+    }
+
+    function finishDrag() {
+      if (!drag) return;
+      const state = drag;
+      drag = null;
+      clearDropTargets();
+      state.card.classList.remove('is-dragging');
+      state.ghost?.remove();
+      if (!state.active || !state.target) return;
+
+      const toIndex = state.target.hasAttribute('data-featured-drop')
+        ? 0
+        : Number(state.target.dataset.galleryIndex);
+      if (Number.isNaN(toIndex) || toIndex === state.fromIndex) return;
+
+      const url = document.getElementById('product-images')?.dataset.imagesUrl;
+      if (!url || !window.htmx) return;
+      htmx.ajax('POST', url, {
+        target: '#product-images',
+        swap: 'outerHTML',
+        values: {
+          action: 'reorder',
+          from_index: String(state.fromIndex),
+          to_index: String(toIndex),
+          csrfmiddlewaretoken: csrfToken(),
+        },
+      });
+    }
+
+    document.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const handle = e.target.closest('.gallery-handle');
+      if (!handle) return;
+      const card = handle.closest('.gallery-card');
+      if (!card) return;
+
+      e.preventDefault();
+      const rect = card.getBoundingClientRect();
+      drag = {
+        card,
+        fromIndex: Number(card.dataset.galleryIndex),
+        startX: e.clientX,
+        startY: e.clientY,
+        offsetX: e.clientX - rect.left,
+        offsetY: e.clientY - rect.top,
+        width: rect.width,
+        height: rect.height,
+        active: false,
+        ghost: null,
+        target: null,
+      };
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    document.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      if (!drag.active) {
+        if (Math.hypot(dx, dy) < 6) return;
+        drag.active = true;
+        drag.card.classList.add('is-dragging');
+        const ghost = document.createElement('div');
+        ghost.className = 'gallery-drag-ghost';
+        ghost.style.width = drag.width + 'px';
+        ghost.style.height = drag.height + 'px';
+        const img = drag.card.querySelector('img');
+        if (img) ghost.appendChild(img.cloneNode(true));
+        document.body.appendChild(ghost);
+        drag.ghost = ghost;
+      }
+      drag.ghost.style.transform = 'translate3d(' + (e.clientX - drag.offsetX) + 'px,' + (e.clientY - drag.offsetY) + 'px,0)';
+      const over = targetFromPoint(e.clientX, e.clientY);
+      clearDropTargets();
+      if (over && over !== drag.card) {
+        over.classList.add('is-drop-target');
+        drag.target = over;
+      } else {
+        drag.target = null;
+      }
+    });
+
+    document.addEventListener('pointerup', finishDrag);
+    document.addEventListener('pointercancel', finishDrag);
+  })();
+</script>
 {% endblock %}
