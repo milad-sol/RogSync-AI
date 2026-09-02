@@ -13,6 +13,7 @@ urlpatterns = [
 
     # Products
     path("products/", views.product_list_view, name="product_list"),
+    path("products/sent/", views.sent_products_view, name="sent_products"),
     path("products/<int:pk>/review/", views.product_review_view, name="product_review"),
 
     # Prompt Templates
@@ -36,6 +37,7 @@ urlpatterns = [
     path("products/<int:pk>/approve/", views.approve_product_view, name="approve_product"),
     path("products/<int:pk>/regenerate/", views.regenerate_ai_view, name="regenerate_ai"),
     path("products/<int:pk>/row/", views.product_row_view, name="product_row"),
+    path("products/<int:pk>/push-status/", views.product_push_status_view, name="product_push_status"),
     path("products/<int:pk>/update-fields/", views.update_product_fields_view, name="update_fields"),
     path("products/<int:pk>/update-content/", views.update_product_content_view, name="update_content"),
     path("products/<int:pk>/images/", views.update_product_images_view, name="update_images"),

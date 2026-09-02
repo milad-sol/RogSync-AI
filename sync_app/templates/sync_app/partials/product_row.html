@@ -1,6 +1,6 @@
 <tr id="product-row-{{ product.pk }}"
     class="hover:bg-slate-50/60 transition-colors group"
-    {% if product.status == 'ai_processing' %}
+    {% if product.status == 'ai_processing' or product.status == 'approved' %}
     hx-get="{% url 'sync_app:product_row' product.pk %}"
     hx-trigger="every 2s"
     hx-swap="outerHTML"
@@ -22,7 +22,13 @@
     {% endif %}
   </td>
   <td class="py-3.5 px-5">
-    {% if product.status == 'ai_processing' %}
+    {% if sent_list %}
+      {% if product.prompt_template %}
+      <span class="inline-flex items-center text-[11px] font-medium bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200 px-2 py-0.5 rounded-md">{{ product.prompt_template.title }}</span>
+      {% else %}
+      <span class="text-[12px] text-slate-400">—</span>
+      {% endif %}
+    {% elif product.status == 'ai_processing' %}
       {% if product.prompt_template %}
       <span class="inline-flex items-center text-[11px] font-medium bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200 px-2 py-0.5 rounded-md">{{ product.prompt_template.title }}</span>
       {% else %}
@@ -58,7 +64,12 @@
   </td>
   <td class="py-3.5 px-5">
     <div class="flex flex-col items-stretch gap-1.5 min-w-[132px]">
-      {% if product.status != 'ai_processing' %}
+      {% if sent_list %}
+      <a href="{% url 'sync_app:product_review' product.pk %}"
+         class="text-center text-brand-600 hover:text-brand-800 text-[12px] font-medium px-2 py-1">
+        مشاهده
+      </a>
+      {% elif product.status != 'ai_processing' %}
       <form hx-post="{% url 'sync_app:regenerate_ai' product.pk %}"
             hx-target="#product-row-{{ product.pk }}"
             hx-swap="outerHTML"

@@ -356,12 +356,22 @@
 
         <!-- Products Review -->
         <a href="{% url 'sync_app:product_list' %}"
-           class="nav-item {% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'product_review' %}active{% endif %}
+           class="nav-item {% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'product_review' and product.status != 'synced' %}active{% endif %}
                   flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
           <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
           </svg>
           بررسی محصولات
+        </a>
+
+        <!-- Sent products -->
+        <a href="{% url 'sync_app:sent_products' %}"
+           class="nav-item {% if request.resolver_match.url_name == 'sent_products' or request.resolver_match.url_name == 'product_review' and product.status == 'synced' %}active{% endif %}
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
+          <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+          ارسال‌شده‌ها
         </a>
 
         <!-- Extract products -->

@@ -67,7 +67,7 @@ class ProductSync(models.Model):
         AI_PROCESSING = "ai_processing", "در حال پردازش AI"
         READY_FOR_REVIEW = "ready_for_review", "آماده بررسی"
         APPROVED = "approved", "تأیید شده"
-        SYNCED = "synced", "همگام‌سازی شده"
+        SYNCED = "synced", "ارسال شده"
 
     # ── Product type choices ────────────────
     class ProductType(models.TextChoices):

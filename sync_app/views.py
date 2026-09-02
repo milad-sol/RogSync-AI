@@ -88,23 +88,16 @@ def dashboard_view(request):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Product List
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def product_list_view(request):
-    """Filterable list of all products in the pipeline."""
-    status_filter = request.GET.get("status", "")
+REVIEW_STATUS_CHOICES = [
+    (value, label)
+    for value, label in ProductSync.Status.choices
+    if value != ProductSync.Status.SYNCED
+]
+
+
+def _apply_product_filters(products, request):
     search_query = request.GET.get("q", "")
     source_cat = request.GET.get("source_cat", "")
-
-    swal_queue = []
-    if not AiSettings.is_configured():
-        stuck = ProductSync.objects.filter(status=ProductSync.Status.AI_PROCESSING)
-        if stuck.exists():
-            stuck.update(status=ProductSync.Status.FETCHED)
-            swal_queue.append({"icon": "error", "title": AI_KEY_MISSING})
-
-    products = ProductSync.objects.select_related("prompt_template").all()
-
-    if status_filter:
-        products = products.filter(status=status_filter)
     if search_query:
         products = products.filter(
             Q(title__icontains=search_query) | Q(source_id__icontains=search_query)
@@ -126,7 +119,26 @@ def product_list_view(request):
             products = products.filter(pk__in=matching_ids)
         except ValueError:
             source_cat = ""
+    return products, search_query, source_cat
 
+
+def product_list_view(request):
+    """Review queue: every product that has not been sent yet."""
+    status_filter = request.GET.get("status", "")
+
+    swal_queue = []
+    if not AiSettings.is_configured():
+        stuck = ProductSync.objects.filter(status=ProductSync.Status.AI_PROCESSING)
+        if stuck.exists():
+            stuck.update(status=ProductSync.Status.FETCHED)
+            swal_queue.append({"icon": "error", "title": AI_KEY_MISSING})
+
+    products = ProductSync.objects.select_related("prompt_template").exclude(
+        status=ProductSync.Status.SYNCED
+    )
+    if status_filter and status_filter != ProductSync.Status.SYNCED:
+        products = products.filter(status=status_filter)
+    products, search_query, source_cat = _apply_product_filters(products, request)
     products = products.order_by("-updated_at")
 
     return render(request, "sync_app/product_list.html", {
@@ -134,10 +146,35 @@ def product_list_view(request):
         "status_filter": status_filter,
         "search_query": search_query,
         "source_cat": source_cat,
-        "status_choices": ProductSync.Status.choices,
+        "status_choices": REVIEW_STATUS_CHOICES,
         "source_category_options": _unique_source_categories(),
         "prompt_templates": PromptTemplate.objects.order_by("-is_active", "title"),
         "swal_queue": swal_queue,
+        "sent_list": False,
+    })
+
+
+def sent_products_view(request):
+    """Products that were approved and pushed to the destination store."""
+    products = ProductSync.objects.select_related("prompt_template").filter(
+        status=ProductSync.Status.SYNCED
+    )
+    products, search_query, source_cat = _apply_product_filters(products, request)
+    products = products.order_by("-updated_at")
+    swal_queue = []
+    if request.GET.get("sent") == "1":
+        swal_queue.append({"icon": "success", "title": "محصول به سایت مقصد ارسال شد."})
+
+    return render(request, "sync_app/product_list.html", {
+        "products": products,
+        "status_filter": "",
+        "search_query": search_query,
+        "source_cat": source_cat,
+        "status_choices": [],
+        "source_category_options": _unique_source_categories(),
+        "prompt_templates": PromptTemplate.objects.order_by("-is_active", "title"),
+        "swal_queue": swal_queue,
+        "sent_list": True,
     })
 
 
@@ -577,8 +614,26 @@ def product_row_view(request, pk):
     ):
         product.status = ProductSync.Status.FETCHED
         product.save(update_fields=["status"])
-        return _product_row_response(request, product, generate_error=AI_KEY_MISSING)
+    if product.status == ProductSync.Status.SYNCED:
+        response = HttpResponse()
+        response["HX-Reswap"] = "delete"
+        return response
     return _product_row_response(request, product)
+
+
+def product_push_status_view(request, pk):
+    """HTMX: poll until the destination push finishes, then leave review."""
+    product = get_object_or_404(ProductSync, pk=pk)
+    if product.status == ProductSync.Status.SYNCED:
+        url = f"{reverse('sync_app:sent_products')}?sent=1"
+        if request.headers.get("HX-Request"):
+            response = HttpResponse()
+            response["HX-Redirect"] = url
+            return response
+        return redirect(url)
+    return render(request, "sync_app/partials/status_badge.html", {
+        "product": product,
+    })
 
 
 @require_POST

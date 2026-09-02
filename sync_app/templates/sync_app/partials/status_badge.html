@@ -1,8 +1,17 @@
 <!-- Status badge — colors follow the active light/dark theme -->
-<div class="flex items-center gap-3">
+<div class="flex items-center gap-3"
+     {% if product.status == 'approved' %}
+     hx-get="{% url 'sync_app:product_push_status' product.pk %}"
+     hx-trigger="every 2s"
+     hx-target="#status-zone"
+     hx-swap="innerHTML"
+     {% endif %}>
   <span class="inline-flex items-center text-[11px] font-medium ring-1 ring-inset px-2.5 py-1 rounded-md {{ product.status_badge_classes }}">
     {% if product.status == 'ai_processing' %}
     <span class="w-1.5 h-1.5 rounded-full bg-amber-500 ml-1.5 animate-pulse-dot"></span>
+    {% endif %}
+    {% if product.status == 'approved' %}
+    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 ml-1.5 animate-pulse-dot"></span>
     {% endif %}
     {{ product.get_status_display }}
   </span>

@@ -218,3 +218,33 @@ class GenerateRequiresAiSettingsTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("OpenRouter", response["HX-Trigger"])
+
+
+class SentProductsListTests(TestCase):
+    def setUp(self):
+        self.review = ProductSync.objects.create(
+            source_id=201,
+            title="محصول در بررسی",
+            original_slug="in-review",
+            status=ProductSync.Status.READY_FOR_REVIEW,
+        )
+        self.sent = ProductSync.objects.create(
+            source_id=202,
+            title="محصول ارسال شده",
+            original_slug="already-sent",
+            status=ProductSync.Status.SYNCED,
+        )
+
+    def test_review_list_hides_synced_products(self):
+        response = self.client.get(reverse("sync_app:product_list"))
+        body = response.content.decode()
+        self.assertContains(response, "محصول در بررسی")
+        self.assertNotIn("محصول ارسال شده", body)
+        self.assertContains(response, "بررسی محصولات")
+
+    def test_sent_list_shows_only_synced_products(self):
+        response = self.client.get(reverse("sync_app:sent_products"))
+        body = response.content.decode()
+        self.assertContains(response, "محصول ارسال شده")
+        self.assertNotIn("محصول در بررسی", body)
+        self.assertContains(response, "ارسال‌شده‌ها")
