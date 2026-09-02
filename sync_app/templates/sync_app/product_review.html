@@ -82,6 +82,9 @@
                  class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[15px] font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
           <div class="flex items-center gap-2 text-[12px]">
             <span class="font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">ID: {{ product.source_id }}</span>
+            {% if product.target_sku %}
+            <span class="font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded" dir="ltr">SKU: {{ product.target_sku }}</span>
+            {% endif %}
             {% if product.product_type == 'variable' %}
             <span class="bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 px-2 py-0.5 rounded-md font-medium">متغیر — {{ product.variations_data|length }} تنوع</span>
             {% else %}

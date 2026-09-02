@@ -97,6 +97,13 @@ class ProductSync(models.Model):
         verbose_name="اسلاگ مقصد",
         help_text="پیش‌فرض: اسلاگ اصلی. قابل ویرایش قبل از ارسال.",
     )
+    target_sku = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        verbose_name="SKU مقصد",
+        help_text="اگر مبدأ SKU نداشته باشد از روی نام محصول ساخته می‌شود.",
+    )
 
     # ── Type & Keywords ────────────────────
     product_type = models.CharField(

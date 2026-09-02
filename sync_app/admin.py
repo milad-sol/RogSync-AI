@@ -12,9 +12,9 @@ class PromptTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(ProductSync)
 class ProductSyncAdmin(admin.ModelAdmin):
-    list_display = ("source_id", "title", "prompt_template", "product_type", "status", "updated_at")
+    list_display = ("source_id", "title", "target_sku", "prompt_template", "product_type", "status", "updated_at")
     list_filter = ("status", "product_type", "prompt_template")
-    search_fields = ("title", "source_id")
+    search_fields = ("title", "source_id", "target_sku")
     readonly_fields = ("source_id", "created_at", "updated_at")
 
 

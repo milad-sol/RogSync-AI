@@ -20,6 +20,7 @@ from django.views.decorators.http import require_POST
 
 from .content import strip_keyword_marks
 from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate, GlobalKeyword
+from .sku import assign_skus
 from .tasks import (
     fetch_products_task,
     list_wc_categories,
@@ -56,6 +57,13 @@ ALLOWED_IMAGE_TYPES = {
 }
 ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+
+def _variation_missing_sku(product):
+    for item in product.variations_data or []:
+        if isinstance(item, dict) and not (item.get("sku") or "").strip():
+            return True
+    return False
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -147,6 +155,9 @@ def product_review_view(request, pk):
         product.status = ProductSync.Status.FETCHED
         product.save(update_fields=["status"])
         unstuck_ai = True
+    if not (product.target_sku or "").strip() or _variation_missing_sku(product):
+        assign_skus(product)
+        product.save(update_fields=["target_sku", "variations_data", "updated_at"])
     target_category_options = []
     target_categories_error = ""
     try:

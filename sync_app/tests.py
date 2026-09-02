@@ -109,6 +109,53 @@ class PromptHelpersTests(SimpleTestCase):
         self.assertNotIn("58900000", prompt)
 
 
+class SkuHelpersTests(SimpleTestCase):
+    def test_laptop_title_uses_lpt_stem(self):
+        from sync_app.sku import product_sku, sku_stem
+
+        self.assertEqual(sku_stem("لپ تاپ گیمینگ ایسوس"), "lpt")
+        sku = product_sku("لپ تاپ گیمینگ ایسوس", 88, set())
+        self.assertTrue(sku.startswith("lpt"))
+        self.assertNotIn(" ", sku)
+
+    def test_keeps_source_sku(self):
+        from sync_app.sku import product_sku
+
+        self.assertEqual(product_sku("لپ تاپ", 1, set(), source_sku="KEEP-1"), "KEEP-1")
+
+    def test_unique_when_names_collide(self):
+        from sync_app.sku import product_sku
+
+        taken = set()
+        first = product_sku("لپ تاپ ایسوس", 11, taken)
+        second = product_sku("لپ تاپ ایسوس", 12, taken)
+        self.assertNotEqual(first, second)
+
+    def test_variation_sku_from_attributes(self):
+        from sync_app.sku import variation_sku
+
+        sku = variation_sku("lpt-asu", {
+            "attributes": [
+                {"name": "رنگ", "option": "نقره‌ای"},
+                {"name": "حافظه SSD", "option": "512GB"},
+            ],
+        }, set())
+        self.assertTrue(sku.startswith("lpt-asu-"))
+        self.assertIn("512", sku)
+
+    def test_rerelease_keeps_same_generated_sku(self):
+        from sync_app.sku import product_sku, release_skus
+
+        class Row:
+            target_sku = "lpt-gmn-svs"
+            variations_data = [{"sku": "lpt-gmn-svs-nqr-512gb"}]
+
+        taken = {"lpt-gmn-svs", "lpt-gmn-svs-nqr-512gb", "other"}
+        release_skus(Row(), taken)
+        self.assertEqual(taken, {"other"})
+        self.assertEqual(product_sku("لپ تاپ گیمینگ ایسوس", 888002, taken), "lpt-gmn-svs")
+
+
 class FetchRequiresPromptTests(TestCase):
     def test_fetch_without_prompt_is_rejected(self):
         response = self.client.post(

@@ -17,6 +17,7 @@ from woocommerce import API as WooAPI
 from .content import embed_images_after_paragraphs
 from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate, GlobalKeyword
 from .prompts import build_generation_prompt, select_injection_keywords, split_generated_content
+from .sku import assign_skus, collect_taken_skus, product_sku, release_skus, variation_sku
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +183,8 @@ def fetch_products_task(self, category_id: int, limit=None, prompt_id=None):
             logger.error("PromptTemplate %s not found. Fetch aborted.", prompt_id)
             return []
 
+    taken_skus = collect_taken_skus()
+
     try:
         page = 1
         total_fetched = 0
@@ -231,16 +234,40 @@ def fetch_products_task(self, category_id: int, limit=None, prompt_id=None):
                             e,
                         )
 
+                title = product.get("name", "")
+                source_sku = (product.get("sku") or "").strip()
+                existing = ProductSync.objects.filter(source_id=product["id"]).only(
+                    "target_sku", "variations_data"
+                ).first()
+                release_skus(existing, taken_skus)
+                if source_sku:
+                    target_sku = product_sku(title, product["id"], taken_skus, source_sku=source_sku)
+                elif existing and existing.target_sku:
+                    target_sku = existing.target_sku.strip()
+                    taken_skus.add(target_sku)
+                else:
+                    target_sku = product_sku(title, product["id"], taken_skus)
+
+                assigned_variations = []
+                for item in variations_data:
+                    if not isinstance(item, dict):
+                        assigned_variations.append(item)
+                        continue
+                    row = dict(item)
+                    row["sku"] = variation_sku(target_sku, row, taken_skus)
+                    assigned_variations.append(row)
+
                 defaults = {
-                    "title": product.get("name", ""),
+                    "title": title,
                     "original_slug": product.get("slug", ""),
                     "product_type": product.get("type", "simple"),
                     "original_desc": product.get("description", ""),
                     "original_short_desc": product.get("short_description", ""),
                     "source_permalink": product.get("permalink", "") or "",
+                    "target_sku": target_sku,
                     "attributes": attributes,
                     "images_data": images_data,
-                    "variations_data": variations_data,
+                    "variations_data": assigned_variations,
                     "source_categories": source_categories,
                     "status": ProductSync.Status.FETCHED,
                 }
@@ -420,10 +447,14 @@ def push_to_target_task(self, product_id: int):
     api = _target_api()
 
     try:
+        assign_skus(product)
+        product.save(update_fields=["target_sku", "variations_data", "updated_at"])
+
         # Build the product payload
         payload = {
             "name": product.title,
             "slug": product.target_slug,
+            "sku": product.target_sku,
             "type": product.product_type,
             "description": product.generated_desc or product.original_desc,
             "short_description": product.generated_short_desc or product.original_short_desc,
@@ -458,7 +489,7 @@ def push_to_target_task(self, product_id: int):
                 var_payload = {
                     "regular_price": str(variation.get("regular_price", "")),
                     "sale_price": str(variation.get("sale_price", "")),
-                    "sku": variation.get("sku", ""),
+                    "sku": (variation.get("sku") or product.target_sku),
                     "stock_quantity": variation.get("stock_quantity"),
                     "stock_status": variation.get("stock_status", "instock"),
                     "attributes": variation.get("attributes", []),
