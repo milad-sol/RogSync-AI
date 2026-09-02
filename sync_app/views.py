@@ -15,8 +15,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from .content import strip_keyword_marks
 from .models import AiSettings, ApiSettings, ProductSync, PromptTemplate, GlobalKeyword
-from .tasks import fetch_products_task, process_ai_rewrite_task, push_to_target_task
+from .tasks import (
+    fetch_products_task,
+    list_wc_categories,
+    process_ai_rewrite_task,
+    push_to_target_task,
+)
 
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg",
@@ -55,6 +61,7 @@ def product_list_view(request):
     """Filterable list of all products in the pipeline."""
     status_filter = request.GET.get("status", "")
     search_query = request.GET.get("q", "")
+    source_cat = request.GET.get("source_cat", "")
 
     products = ProductSync.objects.all()
 
@@ -64,6 +71,23 @@ def product_list_view(request):
         products = products.filter(
             Q(title__icontains=search_query) | Q(source_id__icontains=search_query)
         )
+    if source_cat:
+        try:
+            source_cat_id = int(source_cat)
+            matching_ids = []
+            for product in ProductSync.objects.only("pk", "source_categories"):
+                for item in product.source_categories or []:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        if int(item.get("id", -1)) == source_cat_id:
+                            matching_ids.append(product.pk)
+                            break
+                    except (TypeError, ValueError):
+                        continue
+            products = products.filter(pk__in=matching_ids)
+        except ValueError:
+            source_cat = ""
 
     products = products.order_by("-updated_at")
 
@@ -71,7 +95,9 @@ def product_list_view(request):
         "products": products,
         "status_filter": status_filter,
         "search_query": search_query,
+        "source_cat": source_cat,
         "status_choices": ProductSync.Status.choices,
+        "source_category_options": _unique_source_categories(),
     })
 
 
@@ -81,6 +107,13 @@ def product_list_view(request):
 def product_review_view(request, pk):
     """Review and edit product content, featured image, and gallery."""
     product = get_object_or_404(ProductSync, pk=pk)
+    target_category_options = []
+    target_categories_error = ""
+    try:
+        target_category_options = list_wc_categories("target")
+    except Exception:
+        target_categories_error = "دسته‌بندی‌های سایت مقصد بارگذاری نشد. تنظیمات API مقصد را بررسی کنید."
+
     return render(request, "sync_app/product_review.html", {
         "product": product,
         "saved": request.GET.get("saved") == "1",
@@ -91,6 +124,10 @@ def product_review_view(request, pk):
             ProductSync.Status.READY_FOR_REVIEW,
             ProductSync.Status.APPROVED,
         },
+        "target_category_options": target_category_options,
+        "target_categories_error": target_categories_error,
+        "selected_target_ids": product.target_category_id_set,
+        "highlight_keywords": _highlight_keywords_payload(product),
     })
 
 
@@ -268,9 +305,57 @@ def _apply_content_fields(product, post_data):
         product.target_keywords = post_data.get("target_keywords", "").strip()
 
     if "generated_desc" in post_data:
-        product.generated_desc = post_data.get("generated_desc", "")
+        product.generated_desc = strip_keyword_marks(post_data.get("generated_desc", ""))
     if "generated_short_desc" in post_data:
-        product.generated_short_desc = post_data.get("generated_short_desc", "")
+        product.generated_short_desc = strip_keyword_marks(post_data.get("generated_short_desc", ""))
+
+    if post_data.get("categories_submitted") == "1":
+        getlist = getattr(post_data, "getlist", None)
+        raw_ids = getlist("target_category_ids") if getlist else post_data.get("target_category_ids") or []
+        if isinstance(raw_ids, str):
+            raw_ids = [raw_ids]
+        selected = []
+        for raw_id in raw_ids:
+            try:
+                cid = int(raw_id)
+            except (TypeError, ValueError):
+                continue
+            name = post_data.get(f"target_category_name_{cid}", str(cid)).strip()
+            selected.append({"id": cid, "name": name})
+        product.target_categories = selected
+
+
+def _highlight_keywords_payload(product):
+    """Keywords to highlight in the review editor: product vs global."""
+    global_rows = list(
+        GlobalKeyword.objects.filter(is_active=True)
+        .order_by("-priority")
+        .values("word", "priority")
+    )
+    return {
+        "product": product.keywords_list,
+        "global": [
+            {"word": row["word"], "priority": row["priority"]}
+            for row in global_rows
+            if row.get("word")
+        ],
+    }
+
+
+def _unique_source_categories():
+    """Build a sorted id/name list of source categories seen on synced products."""
+    seen = {}
+    for cats in ProductSync.objects.exclude(source_categories=[]).values_list("source_categories", flat=True):
+        for item in cats or []:
+            if not isinstance(item, dict) or item.get("id") is None:
+                continue
+            try:
+                cid = int(item["id"])
+            except (TypeError, ValueError):
+                continue
+            if cid not in seen:
+                seen[cid] = (item.get("name") or str(cid)).strip()
+    return sorted(seen.items(), key=lambda row: row[1])
 
 
 def _normalized_images(product):
@@ -355,30 +440,62 @@ def regenerate_ai_view(request, pk):
 def fetch_products_view(request):
     """HTMX: Trigger product fetch from source WooCommerce."""
     category_id = request.POST.get("category_id", "")
+    fetch_all = request.POST.get("fetch_all") == "1"
     limit = request.POST.get("limit", "20")
 
     if not category_id:
         return HttpResponse(
-            '<span class="text-[12px] text-red-600 font-medium">لطفاً شناسه دسته‌بندی را وارد کنید.</span>',
+            '<span class="text-[12px] text-red-600 font-medium">لطفاً یک دسته‌بندی انتخاب کنید.</span>',
             status=400,
         )
 
     try:
         category_id = int(category_id)
-        limit = int(limit)
+        if fetch_all:
+            limit_value = None
+        else:
+            limit_value = int(limit)
+            if limit_value <= 0:
+                raise ValueError("limit must be positive")
     except ValueError:
         return HttpResponse(
             '<span class="text-[12px] text-red-600 font-medium">مقادیر نامعتبر.</span>',
             status=400,
         )
 
-    fetch_products_task.delay(category_id, limit)
+    fetch_products_task.delay(category_id, limit_value)
+
+    if fetch_all:
+        message = f"✓ استخراج همه محصولات دسته {category_id} شروع شد"
+    else:
+        message = f"✓ استخراج حداکثر {limit_value} محصول از دسته {category_id} شروع شد"
 
     return HttpResponse(
-        f'<span class="text-[12px] text-emerald-600 font-medium">'
-        f'✓ دریافت از دسته {category_id} شروع شد (حداکثر {limit})'
-        f'</span>'
+        f'<span class="text-[12px] text-emerald-600 font-medium">{message}</span>'
     )
+
+
+def extract_products_view(request):
+    """Dedicated page for pulling products from source WooCommerce categories."""
+    error = ""
+    categories = []
+    source_url = ""
+    creds = ApiSettings.load()
+    source_url = creds.wc_source_url or settings.WC_SOURCE_URL
+
+    if not source_url:
+        error = "ابتدا آدرس و کلیدهای سایت منبع را در تنظیمات API ذخیره کنید."
+    else:
+        try:
+            categories = list_wc_categories("source")
+        except Exception:
+            error = "ارتباط با فروشگاه منبع برقرار نشد. تنظیمات API منبع را بررسی کنید."
+
+    return render(request, "sync_app/extract_products.html", {
+        "categories": categories,
+        "error": error,
+        "source_url": source_url,
+    })
 
 
 @require_POST

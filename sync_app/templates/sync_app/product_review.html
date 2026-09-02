@@ -46,6 +46,22 @@
     object-fit: cover;
     display: block;
   }
+
+  .kw-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .kw-legend i {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .kw-legend .swatch-product { background: #fbbf24; }
+  .kw-legend .swatch-global { background: #a78bfa; }
 </style>
 {% endblock %}
 
@@ -86,7 +102,44 @@
       </div>
     </div>
 
-    <!-- ── Slug & Keywords ─────────────── -->
+    <!-- ── Categories ──────────────────── -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-5">
+      <div>
+        <h3 class="text-[13px] font-semibold text-slate-700 mb-2">دسته‌بندی منبع</h3>
+        <div class="flex flex-wrap gap-1.5">
+          {% for cat in product.source_categories %}
+          <span class="inline-flex items-center text-[11px] font-medium bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-600/20 px-2 py-0.5 rounded-md">{{ cat.name }}</span>
+          {% empty %}
+          <span class="text-[12px] text-slate-400">دسته‌بندی منبع ثبت نشده است.</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <h3 class="text-[13px] font-semibold text-slate-700 mb-1.5">دسته‌بندی مقصد</h3>
+        <p class="text-[12px] text-slate-400 mb-3">محصول با این دسته‌ها به سایت مقصد ارسال می‌شود. می‌توانید با منبع فرق داشته باشد.</p>
+        <input type="hidden" name="categories_submitted" value="1">
+        {% if target_categories_error %}
+        <p class="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">{{ target_categories_error }}</p>
+        {% endif %}
+        {% if target_category_options %}
+        <div class="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
+          {% for cat in target_category_options %}
+          <label class="flex items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white cursor-pointer">
+            <input type="checkbox" name="target_category_ids" value="{{ cat.id }}"
+                   {% if cat.id in selected_target_ids %}checked{% endif %}
+                   class="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+            <input type="hidden" name="target_category_name_{{ cat.id }}" value="{{ cat.label }}">
+            <span class="text-[13px] text-slate-700">{{ cat.label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% elif product.target_categories %}
+        <p class="text-[12px] text-slate-600">انتخاب فعلی: {{ product.target_category_label }}</p>
+        {% else %}
+        <p class="text-[12px] text-slate-400">دسته‌بندی مقصد هنوز انتخاب نشده است.</p>
+        {% endif %}
+      </div>
+    </div>
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
@@ -109,6 +162,10 @@
           <span class="w-2 h-2 rounded-full bg-brand-500"></span>
           <span class="text-[12px] font-semibold text-brand-700">توضیحات کوتاه — قابل ویرایش</span>
         </div>
+        <div class="flex items-center gap-3">
+          <span class="kw-legend"><i class="swatch-product"></i> کلمه محصول</span>
+          <span class="kw-legend"><i class="swatch-global"></i> کلمه سراسری</span>
+        </div>
       </div>
       <div class="p-5">
         <textarea id="id_generated_short_desc" name="generated_short_desc">{{ editable_short }}</textarea>
@@ -128,7 +185,11 @@
           <span class="w-2 h-2 rounded-full bg-brand-500"></span>
           <span class="text-[12px] font-semibold text-brand-700">توضیحات اصلی — قابل ویرایش</span>
         </div>
-        <span class="text-[11px] text-slate-400">غلط املایی و متن را همین‌جا اصلاح کنید</span>
+        <div class="flex items-center gap-3">
+          <span class="text-[11px] text-slate-400">کلمات تزریق‌شده هایلایت می‌شوند</span>
+          <span class="kw-legend"><i class="swatch-product"></i> کلمه محصول</span>
+          <span class="kw-legend"><i class="swatch-global"></i> کلمه سراسری</span>
+        </div>
       </div>
       <div class="p-5">
         <textarea id="id_generated_desc" name="generated_desc">{{ editable_desc }}</textarea>
@@ -191,7 +252,86 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{{ highlight_keywords|json_script:"keyword-highlight-data" }}
 <script>
+  const keywordData = JSON.parse(document.getElementById('keyword-highlight-data').textContent || '{}');
+  const productKeywords = (keywordData.product || []).filter(Boolean);
+  const globalKeywords = (keywordData.global || []).map((item) => item.word).filter(Boolean);
+
+  function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function unwrapKeywordMarks(root) {
+    root.querySelectorAll('mark.kw-product, mark.kw-global').forEach((mark) => {
+      const parent = mark.parentNode;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      parent.removeChild(mark);
+      parent.normalize();
+    });
+  }
+
+  function keywordClass(word) {
+    const lower = word.toLowerCase();
+    if (globalKeywords.some((item) => item.toLowerCase() === lower)) return 'kw-global';
+    return 'kw-product';
+  }
+
+  function highlightKeywords(root) {
+    unwrapKeywordMarks(root);
+    const words = [...productKeywords, ...globalKeywords]
+      .map((word) => word.trim())
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+    if (!words.length) return;
+
+    const pattern = new RegExp('(' + words.map(escapeRegExp).join('|') + ')', 'gi');
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement && node.parentElement.closest('mark, script, style')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    textNodes.forEach((node) => {
+      const text = node.nodeValue;
+      pattern.lastIndex = 0;
+      if (!pattern.test(text)) return;
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      pattern.lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        const mark = document.createElement('mark');
+        mark.className = keywordClass(match[0]);
+        mark.textContent = match[0];
+        fragment.appendChild(mark);
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < text.length) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+      node.parentNode.replaceChild(fragment, node);
+    });
+  }
+
+  const highlightContentStyle = [
+    "body { font-family: Vazirmatn, Tahoma, sans-serif; font-size: 14px; line-height: 2; }",
+    "mark.kw-product { background: #fde68a; color: inherit; padding: 0 3px; border-radius: 3px; }",
+    "mark.kw-global { background: #ddd6fe; color: inherit; padding: 0 3px; border-radius: 3px; }",
+    "figure.product-inline-image { margin: 1rem 0; }",
+    "figure.product-inline-image img { max-width: 100%; height: auto; border-radius: 8px; }",
+  ].join(' ');
+
   const editorShared = {
     license_key: 'gpl',
     directionality: 'rtl',
@@ -201,7 +341,16 @@
     relative_urls: false,
     convert_urls: false,
     entity_encoding: 'raw',
-    content_style: "body { font-family: Vazirmatn, Tahoma, sans-serif; font-size: 14px; line-height: 2; }",
+    content_style: highlightContentStyle,
+    setup(editor) {
+    editor.on('init', () => highlightKeywords(editor.getBody()));
+    editor.on('SetContent', () => highlightKeywords(editor.getBody()));
+      let timer;
+      editor.on('keyup', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => highlightKeywords(editor.getBody()), 450);
+      });
+    },
   };
 
   tinymce.init({
@@ -221,7 +370,12 @@
   });
 
   document.getElementById('review-form').addEventListener('submit', function () {
-    if (window.tinymce) tinymce.triggerSave();
+    ['id_generated_desc', 'id_generated_short_desc'].forEach((id) => {
+      const editor = window.tinymce && tinymce.get(id);
+      if (!editor) return;
+      unwrapKeywordMarks(editor.getBody());
+      editor.save();
+    });
   });
 
   (function initGalleryDrag() {

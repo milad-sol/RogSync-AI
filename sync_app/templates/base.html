@@ -182,6 +182,16 @@
           بررسی محصولات
         </a>
 
+        <!-- Extract products -->
+        <a href="{% url 'sync_app:extract_products' %}"
+           class="nav-item {% if request.resolver_match.url_name == 'extract_products' %}active{% endif %}
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-slate-600 transition-colors">
+          <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+          </svg>
+          استخراج محصولات
+        </a>
+
         <p class="px-3 pt-5 pb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">تنظیمات</p>
 
         <!-- Keywords Management -->

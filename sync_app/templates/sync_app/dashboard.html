@@ -4,22 +4,10 @@
 {% block page_title %}داشبورد{% endblock %}
 
 {% block header_actions %}
-<!-- Fetch products mini-form in header -->
-<form hx-post="{% url 'sync_app:fetch_products' %}"
-      hx-target="#fetch-result"
-      hx-swap="innerHTML"
-      class="flex items-center gap-2">
-  {% csrf_token %}
-  <input type="number" name="category_id" placeholder="شناسه دسته‌بندی"
-         class="w-32 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
-  <input type="number" name="limit" value="20" placeholder="تعداد"
-         class="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
-  <button type="submit"
-          class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-4 py-1.5 rounded-lg transition-all hover:shadow-md hover:shadow-brand-500/20 active:scale-[0.97]">
-    دریافت محصولات
-  </button>
-  <div id="fetch-result"></div>
-</form>
+<a href="{% url 'sync_app:extract_products' %}"
+   class="bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-medium px-4 py-1.5 rounded-lg transition-all hover:shadow-md hover:shadow-brand-500/20 active:scale-[0.97]">
+  استخراج محصولات
+</a>
 {% endblock %}
 
 {% block content %}

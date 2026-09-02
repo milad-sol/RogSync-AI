@@ -2,6 +2,10 @@
 
 {% block title %}بررسی محصولات — RogSync AI{% endblock %}
 {% block page_title %}بررسی محصولات{% endblock %}
+{% block header_actions %}
+<a href="{% url 'sync_app:extract_products' %}"
+   class="text-[13px] font-medium text-brand-600 hover:text-brand-800">استخراج محصولات</a>
+{% endblock %}
 
 {% block content %}
 <div class="space-y-5">
@@ -21,6 +25,13 @@
         <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      <select name="source_cat"
+              class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition appearance-none cursor-pointer min-w-[180px]">
+        <option value="">همه دسته‌های منبع</option>
+        {% for cat_id, cat_name in source_category_options %}
+        <option value="{{ cat_id }}" {% if source_cat == cat_id|stringformat:"s" %}selected{% endif %}>{{ cat_name }}</option>
+        {% endfor %}
+      </select>
       <button type="submit"
               class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-medium px-5 py-2.5 rounded-lg transition-colors border border-slate-200">
         اعمال فیلتر
@@ -35,6 +46,8 @@
         <tr class="bg-slate-50/80 border-b border-slate-100">
           <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">شناسه</th>
           <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">عنوان محصول</th>
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">دسته منبع</th>
+          <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">دسته مقصد</th>
           <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">نوع</th>
           <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">وضعیت</th>
           <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">آخرین تغییر</th>
@@ -49,6 +62,16 @@
           </td>
           <td class="py-3.5 px-5">
             <span class="text-slate-700 font-medium">{{ product.title|truncatechars:55 }}</span>
+          </td>
+          <td class="py-3.5 px-5">
+            <span class="text-[12px] text-slate-600">{{ product.source_category_label }}</span>
+          </td>
+          <td class="py-3.5 px-5">
+            {% if product.target_categories %}
+            <span class="text-[12px] text-brand-700">{{ product.target_category_label }}</span>
+            {% else %}
+            <span class="text-[12px] text-slate-400">انتخاب نشده</span>
+            {% endif %}
           </td>
           <td class="py-3.5 px-5">
             {% if product.product_type == 'variable' %}
@@ -81,12 +104,12 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="6" class="py-16 text-center">
+          <td colspan="8" class="py-16 text-center">
             <svg class="w-12 h-12 text-slate-200 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
             </svg>
             <p class="text-sm text-slate-400">محصولی یافت نشد.</p>
-            <p class="text-[12px] text-slate-400 mt-1">ابتدا محصولات را از سایت منبع دریافت کنید.</p>
+            <p class="text-[12px] text-slate-400 mt-1">ابتدا محصولات را از صفحه استخراج دریافت کنید.</p>
           </td>
         </tr>
         {% endfor %}

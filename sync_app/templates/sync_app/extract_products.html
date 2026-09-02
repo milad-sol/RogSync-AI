@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}استخراج محصولات — RogSync AI{% endblock %}
+{% block page_title %}استخراج محصولات{% endblock %}
+{% block page_subtitle %}
+<span class="text-[12px] text-slate-400">از دسته‌بندی‌های سایت منبع، تعداد مشخص یا همه محصولات را بگیرید</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <p class="text-[13px] font-semibold text-slate-800">فروشگاه منبع</p>
+      {% if source_url %}
+      <p class="text-[12px] text-slate-400 mt-1 font-mono dir-ltr" dir="ltr">{{ source_url }}</p>
+      {% else %}
+      <p class="text-[12px] text-slate-400 mt-1">هنوز آدرس منبع تنظیم نشده است.</p>
+      {% endif %}
+    </div>
+    <a href="{% url 'sync_app:api_settings' %}"
+       class="text-[12px] font-medium text-brand-600 hover:text-brand-800">تنظیمات API</a>
+  </div>
+
+  {% if error %}
+  <div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-[13px] text-amber-800">
+    {{ error }}
+  </div>
+  {% else %}
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+      <p class="text-[13px] font-semibold text-slate-700">{{ categories|length }} دسته‌بندی</p>
+      <input type="search" id="category-search" placeholder="جستجوی نام دسته…"
+             class="w-full sm:w-72 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-[13px] text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-[13px]">
+        <thead>
+          <tr class="bg-slate-50/80 border-b border-slate-100">
+            <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">دسته‌بندی منبع</th>
+            <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">شناسه</th>
+            <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">تعداد محصول</th>
+            <th class="text-right py-3.5 px-5 font-semibold text-slate-500 text-[12px]">استخراج</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for cat in categories %}
+          <tr data-cat-row data-label="{{ cat.label|lower }}" class="hover:bg-slate-50/60 transition-colors">
+            <td class="py-4 px-5">
+              <span class="text-slate-700 font-medium">{{ cat.label }}</span>
+            </td>
+            <td class="py-4 px-5">
+              <span class="font-mono text-[12px] text-slate-400">#{{ cat.id }}</span>
+            </td>
+            <td class="py-4 px-5">
+              <span class="text-slate-600">{{ cat.count }}</span>
+            </td>
+            <td class="py-4 px-5">
+              <div class="flex flex-wrap items-center gap-2">
+                <form hx-post="{% url 'sync_app:fetch_products' %}"
+                      hx-target="#fetch-result-{{ cat.id }}"
+                      hx-swap="innerHTML"
+                      class="flex items-center gap-2">
+                  {% csrf_token %}
+                  <input type="hidden" name="category_id" value="{{ cat.id }}">
+                  <input type="number" name="limit" value="20" min="1" max="10000"
+                         class="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400">
+                  <button type="submit"
+                          class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-slate-200 active:scale-[0.97] transition-transform">
+                    استخراج تعداد
+                  </button>
+                </form>
+                <form hx-post="{% url 'sync_app:fetch_products' %}"
+                      hx-target="#fetch-result-{{ cat.id }}"
+                      hx-swap="innerHTML">
+                  {% csrf_token %}
+                  <input type="hidden" name="category_id" value="{{ cat.id }}">
+                  <input type="hidden" name="fetch_all" value="1">
+                  <button type="submit"
+                          class="bg-brand-50 hover:bg-brand-100 text-brand-700 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-brand-200 active:scale-[0.97] transition-transform">
+                    استخراج همه{% if cat.count %} ({{ cat.count }}){% endif %}
+                  </button>
+                </form>
+              </div>
+              <div id="fetch-result-{{ cat.id }}" class="mt-1.5 min-h-[18px]"></div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="py-16 text-center text-[13px] text-slate-400">
+              دسته‌بندی‌ای در سایت منبع پیدا نشد.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const search = document.getElementById('category-search');
+  if (search) {
+    search.addEventListener('input', () => {
+      const query = search.value.trim().toLowerCase();
+      document.querySelectorAll('[data-cat-row]').forEach((row) => {
+        const label = row.dataset.label || '';
+        row.hidden = Boolean(query) && !label.includes(query);
+      });
+    });
+  }
+</script>
+{% endblock %}

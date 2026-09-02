@@ -37,5 +37,6 @@ urlpatterns = [
     path("products/<int:pk>/update-fields/", views.update_product_fields_view, name="update_fields"),
     path("products/<int:pk>/update-content/", views.update_product_content_view, name="update_content"),
     path("products/<int:pk>/images/", views.update_product_images_view, name="update_images"),
+    path("extract/", views.extract_products_view, name="extract_products"),
     path("fetch-products/", views.fetch_products_view, name="fetch_products"),
 ]

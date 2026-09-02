@@ -156,6 +156,18 @@ class ProductSync(models.Model):
         verbose_name="تنوع‌ها",
         help_text="داده‌های تنوع محصول متغیر (قیمت، موجودی، …)",
     )
+    source_categories = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="دسته‌بندی‌های منبع",
+        help_text='فرمت: [{"id": 12, "name": "موبایل", "slug": "mobile"}]',
+    )
+    target_categories = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="دسته‌بندی‌های مقصد",
+        help_text="دسته‌بندی‌هایی که محصول با آن‌ها به سایت مقصد ارسال می‌شود",
+    )
 
     # ── Pipeline status ────────────────────
     status = models.CharField(
@@ -202,6 +214,38 @@ class ProductSync(models.Model):
         if not self.target_keywords:
             return []
         return [kw.strip() for kw in self.target_keywords.split(",") if kw.strip()]
+
+    @staticmethod
+    def _category_names(categories):
+        names = []
+        for item in categories or []:
+            if not isinstance(item, dict):
+                continue
+            name = (item.get("name") or "").strip()
+            if name:
+                names.append(name)
+        return names
+
+    @property
+    def source_category_label(self):
+        names = self._category_names(self.source_categories)
+        return "، ".join(names) if names else "—"
+
+    @property
+    def target_category_label(self):
+        names = self._category_names(self.target_categories)
+        return "، ".join(names) if names else "انتخاب نشده"
+
+    @property
+    def target_category_id_set(self):
+        ids = set()
+        for item in self.target_categories or []:
+            if isinstance(item, dict) and item.get("id") is not None:
+                try:
+                    ids.add(int(item["id"]))
+                except (TypeError, ValueError):
+                    continue
+        return ids
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
